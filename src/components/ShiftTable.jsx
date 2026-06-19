@@ -1,30 +1,39 @@
 import React, { useRef } from 'react'
 
-const STATUS_OPTS = [
-  { value: '',           label: '— Selecionar —' },
-  { value: 'ausencia',   label: 'Ausência Não Comunicada' },
-  { value: 'aviso',      label: 'Ausência Comunicada' },
-  { value: 'substituido',          label: 'Substituído' },
-  { value: 'bloqueado',            label: 'Bloqueado' },
-  { value: 'ausencia_em_sistema',  label: 'Ausência comunicada — continua em sistema' },
-  { value: 'nao_com_em_sistema',   label: 'Ausência não comunicada — continua em sistema' },
+const STATUS_FIXOS = [
+  { value: '',                     label: '— Selecionar —',                                color: '#909090' },
+  { value: 'ausencia',             label: 'Ausência Não Comunicada',                       color: '#ef4444' },
+  { value: 'aviso',                label: 'Ausência Comunicada',                           color: '#eab308' },
+  { value: 'substituido',          label: 'Substituído',                                   color: '#a78bfa' },
+  { value: 'bloqueado',            label: 'Bloqueado',                                     color: '#f97316' },
+  { value: 'ausencia_em_sistema',  label: 'Ausência comunicada — continua em sistema',     color: '#c6c005' },
+  { value: 'nao_com_em_sistema',   label: 'Ausência não comunicada — continua em sistema', color: '#fa6060' },
+  { value: 'tirei',                label: 'Tirei',                                         color: '#f97316' },
 ]
 
-// Cor de cada status no select
-function statusColor(status) {
-  switch (status) {
-    case 'ausencia':             return '#ef4444'   // vermelho
-    case 'aviso':                return '#eab308'   // amarelo
-    case 'substituido':          return '#a78bfa'   // roxo
-    case 'bloqueado':            return '#f97316'   // laranja
-    case 'ausencia_em_sistema':  return '#22c55e'   // verde
-    case 'nao_com_em_sistema':   return '#60a5fa'   // azul
-    default:                     return '#909090'
-  }
+function carregarTagsExtras() {
+  try { return JSON.parse(localStorage.getItem('nexus_tags_extras') || '[]') } catch { return [] }
+}
+
+function salvarTagsExtras(tags) {
+  localStorage.setItem('nexus_tags_extras', JSON.stringify(tags))
+}
+
+function statusColor(status, tagsExtras = []) {
+  const fixo = STATUS_FIXOS.find(s => s.value === status)
+  if (fixo) return fixo.color
+  const extra = tagsExtras.find(t => t.value === status)
+  return extra ? extra.color : '#909090'
 }
 
 export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   const tbodyRef = useRef()
+  const [tagsExtras, setTagsExtras] = React.useState(carregarTagsExtras)
+  const [modalTag, setModalTag] = React.useState(false)
+  const [novaTagLabel, setNovaTagLabel] = React.useState('')
+  const [novaTagCor, setNovaTagCor] = React.useState('#f97316')
+
+  const STATUS_OPTS = [...STATUS_FIXOS, ...tagsExtras]
 
   function handleAdd() {
     onAdd()
@@ -34,10 +43,109 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
     }, 40)
   }
 
+  function adicionarTag() {
+    if (!novaTagLabel.trim()) return
+    const nova = {
+      value: `custom_${Date.now()}`,
+      label: novaTagLabel.trim(),
+      color: novaTagCor,
+    }
+    const novas = [...tagsExtras, nova]
+    setTagsExtras(novas)
+    salvarTagsExtras(novas)
+    setNovaTagLabel('')
+    setNovaTagCor('#f97316')
+    setModalTag(false)
+  }
+
+  function removerTagExtra(value) {
+    const novas = tagsExtras.filter(t => t.value !== value)
+    setTagsExtras(novas)
+    salvarTagsExtras(novas)
+  }
+
   return (
     <div>
+      {/* MODAL NOVA TAG */}
+      {modalTag && (
+        <div style={s.modalOverlay} onClick={() => setModalTag(false)}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={s.modalTitle}>NOVA TAG</div>
+
+            <div style={s.modalField}>
+              <label style={s.modalLabel}>Nome da tag</label>
+              <input
+                autoFocus
+                style={s.modalInput}
+                value={novaTagLabel}
+                onChange={e => setNovaTagLabel(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && adicionarTag()}
+                placeholder="Ex: Atestado, Férias..."
+              />
+            </div>
+
+            <div style={s.modalField}>
+              <label style={s.modalLabel}>Cor</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="color"
+                  value={novaTagCor}
+                  onChange={e => setNovaTagCor(e.target.value)}
+                  style={s.colorPicker}
+                />
+                <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: novaTagCor }}>
+                  {novaTagCor}
+                </span>
+                <div style={{
+                  padding: '3px 10px', border: `1px solid ${novaTagCor}`,
+                  color: novaTagCor, fontFamily: 'IBM Plex Mono, monospace', fontSize: 11,
+                }}>
+                  {novaTagLabel || 'Prévia'}
+                </div>
+              </div>
+            </div>
+
+            {tagsExtras.length > 0 && (
+              <div style={s.modalField}>
+                <label style={s.modalLabel}>Tags criadas</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {tagsExtras.map(t => (
+                    <div key={t.value} style={{ ...s.tagPill, borderColor: t.color, color: t.color }}>
+                      {t.label}
+                      <button onClick={() => removerTagExtra(t.value)} style={s.tagRemove}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button style={s.modalCancel} onClick={() => setModalTag(false)}>Cancelar</button>
+              <button
+                style={{ ...s.modalConfirm, opacity: !novaTagLabel.trim() ? 0.4 : 1 }}
+                onClick={adicionarTag}
+                disabled={!novaTagLabel.trim()}
+              >
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOP BAR */}
       <div style={s.topBar}>
-        <button style={s.addBtn} onClick={handleAdd}
+        <button
+          style={s.tagBtn}
+          onClick={() => setModalTag(true)}
+          onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
+        >
+          + NOVA TAG
+        </button>
+        <button
+          style={s.addBtn}
+          onClick={handleAdd}
           onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
           onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
         >
@@ -45,6 +153,7 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
         </button>
       </div>
 
+      {/* TABELA */}
       <div style={s.tableWrap}>
         <table style={s.table}>
           <thead>
@@ -59,7 +168,15 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
           </thead>
           <tbody ref={tbodyRef}>
             {rows.map((row, idx) => (
-              <Row key={row.id} row={row} idx={idx} onDelete={onDelete} onUpdate={onUpdate} />
+              <Row
+                key={row.id}
+                row={row}
+                idx={idx}
+                onDelete={onDelete}
+                onUpdate={onUpdate}
+                tagsExtras={tagsExtras}
+                statusOpts={STATUS_OPTS}
+              />
             ))}
           </tbody>
         </table>
@@ -76,7 +193,7 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   )
 }
 
-function Row({ row, idx, onDelete, onUpdate }) {
+function Row({ row, idx, onDelete, onUpdate, tagsExtras, statusOpts }) {
   const [hover, setHover] = React.useState(false)
   const isSubstituido = row.status === 'substituido'
 
@@ -99,24 +216,21 @@ function Row({ row, idx, onDelete, onUpdate }) {
       </td>
 
       <td style={s.td}>
-        {/* Select de status */}
         <select
-          style={{ ...s.cellSelect, color: statusColor(row.status) }}
+          style={{ ...s.cellSelect, color: statusColor(row.status, tagsExtras) }}
           value={row.status}
           onChange={e => {
             onUpdate(row.id, 'status', e.target.value)
-            // Limpa o substituto se mudar para outro status
             if (e.target.value !== 'substituido') {
               onUpdate(row.id, 'substitutoPor', '')
             }
           }}
         >
-          {STATUS_OPTS.map(o => (
+          {statusOpts.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
 
-        {/* Campo de substituto — aparece somente quando status = substituido */}
         {isSubstituido && (
           <div style={s.substitutoWrap}>
             <span style={s.substitutoLabel}>Substituído por:</span>
@@ -160,11 +274,16 @@ function Row({ row, idx, onDelete, onUpdate }) {
 }
 
 const s = {
-  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
+  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 },
   addBtn: {
     background: '#f97316', color: '#000', fontFamily: 'Bebas Neue, sans-serif',
     fontSize: 14, letterSpacing: 2, padding: '9px 22px', border: 'none', cursor: 'pointer',
     transition: 'background 0.2s',
+  },
+  tagBtn: {
+    background: 'transparent', border: '1px solid #27272a', color: '#f97316',
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, letterSpacing: 1.5,
+    padding: '9px 16px', cursor: 'pointer', transition: 'border-color 0.2s',
   },
   tableWrap: { background: '#111113', border: '1px solid #27272a', overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
@@ -202,35 +321,61 @@ const s = {
     fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, letterSpacing: 1,
   },
   emptyIcon: { fontSize: 30, marginBottom: 10, opacity: 0.3 },
-
-  // ── Substituto ──
   substitutoWrap: {
-    marginTop: 8,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    background: 'rgba(167,139,250,0.08)',
-    border: '1px solid rgba(167,139,250,0.25)',
+    marginTop: 8, display: 'flex', alignItems: 'center', gap: 8,
+    background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.25)',
     padding: '6px 10px',
   },
   substitutoLabel: {
-    fontFamily: 'IBM Plex Mono, monospace',
-    fontSize: 10,
-    letterSpacing: 1,
-    color: '#a78bfa',
-    whiteSpace: 'nowrap',
-    textTransform: 'uppercase',
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, letterSpacing: 1,
+    color: '#a78bfa', whiteSpace: 'nowrap', textTransform: 'uppercase',
   },
   substitutoInput: {
-    flex: 1,
-    background: 'transparent',
-    border: 'none',
-    borderBottom: '1px solid rgba(167,139,250,0.4)',
-    color: '#ebebeb',
-    fontFamily: 'IBM Plex Sans, sans-serif',
-    fontSize: 12,
-    outline: 'none',
-    padding: '2px 0',
-    minWidth: 0,
+    flex: 1, background: 'transparent', border: 'none',
+    borderBottom: '1px solid rgba(167,139,250,0.4)', color: '#ebebeb',
+    fontFamily: 'IBM Plex Sans, sans-serif', fontSize: 12, outline: 'none',
+    padding: '2px 0', minWidth: 0,
+  },
+  // ── Modal ──
+  modalOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+    zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  modalBox: {
+    background: '#18181b', border: '1px solid #27272a', padding: 28,
+    width: 380, display: 'flex', flexDirection: 'column', gap: 16,
+  },
+  modalTitle: {
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, letterSpacing: 2,
+    color: '#f97316', textTransform: 'uppercase', fontWeight: 700,
+  },
+  modalField: { display: 'flex', flexDirection: 'column', gap: 6 },
+  modalLabel: {
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 9,
+    letterSpacing: 1.5, color: '#555560', textTransform: 'uppercase',
+  },
+  modalInput: {
+    background: '#111113', border: '1px solid #27272a', color: '#ebebeb',
+    fontFamily: 'IBM Plex Sans, sans-serif', fontSize: 13,
+    padding: '8px 10px', outline: 'none',
+  },
+  colorPicker: { width: 36, height: 36, border: 'none', background: 'none', cursor: 'pointer', padding: 0 },
+  tagPill: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '3px 8px', border: '1px solid', fontSize: 11,
+    fontFamily: 'IBM Plex Mono, monospace',
+  },
+  tagRemove: {
+    background: 'none', border: 'none', color: 'inherit',
+    cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1,
+  },
+  modalCancel: {
+    background: 'transparent', border: '1px solid #27272a', color: '#555560',
+    fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, padding: '7px 14px', cursor: 'pointer',
+  },
+  modalConfirm: {
+    background: '#f97316', border: 'none', color: '#000',
+    fontFamily: 'Bebas Neue, sans-serif', fontSize: 14, letterSpacing: 2,
+    padding: '7px 18px', cursor: 'pointer', transition: 'opacity 0.2s',
   },
 }
