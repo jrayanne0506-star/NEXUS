@@ -32,6 +32,7 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   const [modalTag, setModalTag] = React.useState(false)
   const [novaTagLabel, setNovaTagLabel] = React.useState('')
   const [novaTagCor, setNovaTagCor] = React.useState('#f97316')
+  const [qtdAdd, setQtdAdd] = React.useState(1)
 
   const STATUS_OPTS = [...STATUS_FIXOS, ...tagsExtras]
 
@@ -391,7 +392,7 @@ const s = {
     fontFamily: 'Bebas Neue, sans-serif', fontSize: 14, letterSpacing: 2,
     padding: '7px 18px', cursor: 'pointer', transition: 'opacity 0.2s',
   },
-  
+
   addGroup: { display: 'flex', alignItems: 'stretch', gap: 0 },
   qtdInput: {
     width: 48, background: '#222227', border: '1px solid #27272a',
