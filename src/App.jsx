@@ -59,6 +59,25 @@ export default function App() {
     return next
   })
 }
+
+function deleteRow(id) {
+  setData(prev => {
+    const next = { ...prev, [shift]: prev[shift].filter(r => r.id !== id) }
+    saveData(dateKey, next)
+    setSavedDates(listSavedDates())
+    return next
+  })
+}
+
+function updateRow(id, f, v) {
+  setData(prev => {
+    const next = { ...prev, [shift]: prev[shift].map(r => r.id === id ? { ...r, [f]: v } : r) }
+    saveData(dateKey, next)
+    setSavedDates(listSavedDates())
+    return next
+  })
+}
+
   function updateResponsible(val) { persist({ ...data, responsible: val }) }
 
   const allRows = SHIFTS.flatMap(s => data[s] || [])
