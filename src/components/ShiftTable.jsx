@@ -36,12 +36,13 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   const STATUS_OPTS = [...STATUS_FIXOS, ...tagsExtras]
 
   function handleAdd() {
-    onAdd()
-    setTimeout(() => {
-      const inputs = tbodyRef.current?.querySelectorAll('.name-inp')
-      if (inputs?.length) inputs[inputs.length - 1].focus()
-    }, 40)
-  }
+  const n = Math.max(1, Number(qtdAdd) || 1)
+  for (let i = 0; i < n; i++) onAdd()
+  setTimeout(() => {
+    const inputs = tbodyRef.current?.querySelectorAll('.name-inp')
+    if (inputs?.length) inputs[inputs.length - 1].focus()
+  }, 40)
+}
 
   function adicionarTag() {
     if (!novaTagLabel.trim()) return
@@ -134,24 +135,36 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
       )}
 
       {/* TOP BAR */}
-      <div style={s.topBar}>
-        <button
-          style={s.tagBtn}
-          onClick={() => setModalTag(true)}
-          onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
-        >
-          + NOVA TAG
-        </button>
-        <button
-          style={s.addBtn}
-          onClick={handleAdd}
-          onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
-          onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
-        >
-          + ADICIONAR REGISTRO
-        </button>
-      </div>
+     <div style={s.topBar}>
+  <button
+    style={s.tagBtn}
+    onClick={() => setModalTag(true)}
+    onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+    onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
+  >
+    + NOVA TAG
+  </button>
+
+  <div style={s.addGroup}>
+    <input
+      type="number"
+      min={1}
+      max={50}
+      value={qtdAdd}
+      onChange={e => setQtdAdd(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+      style={s.qtdInput}
+      title="Quantidade de registros"
+    />
+    <button
+      style={s.addBtn}
+      onClick={handleAdd}
+      onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
+      onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
+    >
+      + ADICIONAR {qtdAdd > 1 ? `(${qtdAdd})` : 'REGISTRO'}
+    </button>
+  </div>
+</div>
 
       {/* TABELA */}
       <div style={s.tableWrap}>
@@ -211,7 +224,7 @@ function Row({ row, idx, onDelete, onUpdate, tagsExtras, statusOpts }) {
           style={s.cellInput}
           value={row.name}
           placeholder="Nome do colaborador"
-          onChange={e => onUpdate(row.id, 'name', e.target.value)}
+          onChange={e => onUpdate(row.id, 'name', e.target.value.toUpperCase())}
         />
       </td>
 
@@ -377,5 +390,13 @@ const s = {
     background: '#f97316', border: 'none', color: '#000',
     fontFamily: 'Bebas Neue, sans-serif', fontSize: 14, letterSpacing: 2,
     padding: '7px 18px', cursor: 'pointer', transition: 'opacity 0.2s',
+  },
+  
+  addGroup: { display: 'flex', alignItems: 'stretch', gap: 0 },
+  qtdInput: {
+    width: 48, background: '#222227', border: '1px solid #27272a',
+    borderRight: 'none', color: '#f97316', fontFamily: 'IBM Plex Mono, monospace',
+    fontSize: 13, textAlign: 'center', outline: 'none', padding: '0 6px',
+    appearance: 'textfield', MozAppearance: 'textfield',
   },
 }
