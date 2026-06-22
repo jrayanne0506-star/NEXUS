@@ -42,7 +42,7 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   setTimeout(() => {
     const inputs = tbodyRef.current?.querySelectorAll('.name-inp')
     if (inputs?.length) inputs[inputs.length - 1].focus()
-  }, 40)
+  }, 100 * n)
 }
 
   function adicionarTag() {
