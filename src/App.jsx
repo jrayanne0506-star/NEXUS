@@ -3,11 +3,17 @@ import Login from './components/Login.jsx'
 import ShiftTable from './components/ShiftTable.jsx'
 import EntregadoresEstáveis from './components/EntregadoresEstáveis.jsx'
 import ConfirmacaoTurnos, { estavelNaConfirmacao } from './components/ConfirmacaoTurnos.jsx'
+import ExportModal from './components/ExportModal.jsx'
 import {
   loadData, saveData, todayKey, formatDatePT, listSavedDates,
   defaultData, newRow, SHIFT_LABELS, SHIFTS,
 } from './utils/storage.js'
 import { generatePDF } from './utils/pdfExport.js'
+import {
+  generatePDFTemplate1,
+  generatePDFTemplate2,
+  generatePDFTemplate3,
+} from './utils/generatePDFTemplates.js'
 
 const PAGES = ['ausencias', 'entregadores', 'confirmacao']
 const PAGE_LABELS = {
@@ -26,6 +32,7 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState('')
   const [savedDates, setSavedDates] = useState([])
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   // Estado compartilhado entre Estáveis e Confirmação
   const [entregadoresEstaveis, setEntregadoresEstaveis] = useState([])
@@ -52,31 +59,31 @@ export default function App() {
   }, [dateKey])
 
   function addRow() {
-  setData(prev => {
-    const next = { ...prev, [shift]: [...prev[shift], newRow(dateKey)] }
-    saveData(dateKey, next)
-    setSavedDates(listSavedDates())
-    return next
-  })
-}
+    setData(prev => {
+      const next = { ...prev, [shift]: [...prev[shift], newRow(dateKey)] }
+      saveData(dateKey, next)
+      setSavedDates(listSavedDates())
+      return next
+    })
+  }
 
-function deleteRow(id) {
-  setData(prev => {
-    const next = { ...prev, [shift]: prev[shift].filter(r => r.id !== id) }
-    saveData(dateKey, next)
-    setSavedDates(listSavedDates())
-    return next
-  })
-}
+  function deleteRow(id) {
+    setData(prev => {
+      const next = { ...prev, [shift]: prev[shift].filter(r => r.id !== id) }
+      saveData(dateKey, next)
+      setSavedDates(listSavedDates())
+      return next
+    })
+  }
 
-function updateRow(id, f, v) {
-  setData(prev => {
-    const next = { ...prev, [shift]: prev[shift].map(r => r.id === id ? { ...r, [f]: v } : r) }
-    saveData(dateKey, next)
-    setSavedDates(listSavedDates())
-    return next
-  })
-}
+  function updateRow(id, f, v) {
+    setData(prev => {
+      const next = { ...prev, [shift]: prev[shift].map(r => r.id === id ? { ...r, [f]: v } : r) }
+      saveData(dateKey, next)
+      setSavedDates(listSavedDates())
+      return next
+    })
+  }
 
   function updateResponsible(val) { persist({ ...data, responsible: val }) }
 
@@ -98,10 +105,19 @@ function updateRow(id, f, v) {
 
   function shiftCount(s) { return (data[s] || []).filter(r => r.name?.trim()).length }
 
-  async function handlePDF() {
+  // ── Exportar PDF ──────────────────────────────────────────────────────────
+  async function handleExport(templateId) {
     setPdfLoading(true)
-    try { generatePDF({ data, dateKey, responsible: data.responsible, user }) }
-    finally { setPdfLoading(false) }
+    setExportOpen(false)
+    const args = { data, dateKey, responsible: data.responsible, user }
+    try {
+      if (templateId === 'original')   generatePDF(args)
+      if (templateId === 'template1')  generatePDFTemplate1(args)
+      if (templateId === 'template2')  generatePDFTemplate2(args)
+      if (templateId === 'template3')  generatePDFTemplate3(args)
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   if (!user) return <Login onLogin={u => { setUser(u); setDateKey(todayKey()) }} />
@@ -180,13 +196,13 @@ function updateRow(id, f, v) {
             {/* ── Stats ── */}
             <div style={s.statsRow}>
               {[
-                { label: 'Total de Registros',                        value: statTotal,  accent: '#f97316' },
-                { label: 'Ausências Não Comunicadas',                 value: statAus,    accent: '#ef4444' },
-                { label: 'Ausências Comunicadas',                     value: statAvi,    accent: '#eab308' },
-                { label: 'Substituídos',                              value: statSub,    accent: '#a78bfa' },
-                { label: 'Bloqueados',                                value: statBloq,   accent: '#f97316' },
-                { label: 'Aus. Comunicada — em sistema',              value: statAusSis, accent: '#22c55e' },
-                { label: 'Aus. Não Comunicada — em sistema',          value: statNaoSis, accent: '#60a5fa' },
+                { label: 'Total de Registros',               value: statTotal,  accent: '#f97316' },
+                { label: 'Ausências Não Comunicadas',         value: statAus,    accent: '#ef4444' },
+                { label: 'Ausências Comunicadas',             value: statAvi,    accent: '#eab308' },
+                { label: 'Substituídos',                      value: statSub,    accent: '#a78bfa' },
+                { label: 'Bloqueados',                        value: statBloq,   accent: '#f97316' },
+                { label: 'Aus. Comunicada — em sistema',      value: statAusSis, accent: '#22c55e' },
+                { label: 'Aus. Não Comunicada — em sistema',  value: statNaoSis, accent: '#60a5fa' },
               ].map(st => (
                 <div key={st.label} style={{ ...s.statCard, borderLeftColor: st.accent }}>
                   <div style={s.statLabel}>{st.label}</div>
@@ -241,8 +257,10 @@ function updateRow(id, f, v) {
                 value={data.responsible || ''} onChange={e => updateResponsible(e.target.value)} />
             </div>
             <div style={s.devCredit}>dev by <span style={s.devName}>Jeniffer</span></div>
-            <button style={{ ...s.pdfBtn, opacity: pdfLoading ? 0.7 : 1 }}
-              onClick={handlePDF} disabled={pdfLoading}
+            <button
+              style={{ ...s.pdfBtn, opacity: pdfLoading ? 0.7 : 1 }}
+              onClick={() => setExportOpen(true)}
+              disabled={pdfLoading}
               onMouseEnter={e => { if (!pdfLoading) { e.currentTarget.style.background = '#fb923c'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
               onMouseLeave={e => { e.currentTarget.style.background = '#f97316'; e.currentTarget.style.transform = 'translateY(0)' }}
             >
@@ -255,6 +273,13 @@ function updateRow(id, f, v) {
               {pdfLoading ? 'GERANDO PDF…' : 'EXTRAIR RELATÓRIO PDF'}
             </button>
           </footer>
+
+          {/* ── Modal de seleção de template ── */}
+          <ExportModal
+            open={exportOpen}
+            onClose={() => setExportOpen(false)}
+            onExport={handleExport}
+          />
         </>
       )}
     </div>
