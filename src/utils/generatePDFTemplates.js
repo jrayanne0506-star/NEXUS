@@ -1,531 +1,62 @@
 /**
  * generatePDFTemplates.js
- * Três layouts alternativos de exportação PDF para o NEXUS,
- * baseados nos templates Excel da Scorpions Delivery.
- *
- * Dependências já presentes no projeto: jspdf, jspdf-autotable
- * Importar junto com o generatePDF original:
- *   import { generatePDFTemplate1, generatePDFTemplate2, generatePDFTemplate3 } from './generatePDFTemplates'
+ * Três layouts fiéis aos templates Excel da Scorpions Delivery.
+ * Dependências: jspdf, jspdf-autotable (já presentes no projeto)
  */
 
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { SHIFT_LABELS, SHIFTS, formatDatePT } from './storage'
 
-// ── Mapa de rótulos de status (idêntico ao original) ─────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function statusLabel(status, substitutoPor) {
   switch (status) {
     case 'ausencia':            return 'FUROU'
     case 'aviso':               return 'PEDIU PRA SAIR'
     case 'substituido':         return substitutoPor ? `SUBSTITUÍDO: ${substitutoPor}` : 'SUBSTITUÍDO'
     case 'bloqueado':           return 'BLOQUEADO'
+    case 'tirei':               return 'TIRAMOS'
     case 'ausencia_em_sistema': return 'AUS. COMUNICADA (EM SISTEMA)'
     case 'nao_com_em_sistema':  return 'AUS. NÃO COMUNICADA (EM SISTEMA)'
-    case 'tirei':               return 'TIRAMOS'
     default:                    return status?.toUpperCase() || '—'
   }
 }
 
-// ── Contagens por turno ───────────────────────────────────────────────────────
-function countStatus(rows) {
-  return {
-    total:    rows.filter(r => r.name?.trim()).length,
-    pediu:    rows.filter(r => r.status === 'aviso').length,
-    furou:    rows.filter(r => r.status === 'ausencia').length,
-    tirou:    rows.filter(r => r.status === 'tirei' || r.status === 'bloqueado').length,
-    outros:   rows.filter(r => !['aviso','ausencia','tirei','bloqueado'].includes(r.status)).length,
+function statusColor(status) {
+  switch (status) {
+    case 'ausencia':            return [220, 38,  38 ]
+    case 'aviso':               return [161, 128, 0  ]
+    case 'substituido':         return [139, 92,  246]
+    case 'bloqueado':           return [249, 115, 22 ]
+    case 'tirei':               return [249, 115, 22 ]
+    case 'ausencia_em_sistema': return [22,  163, 74 ]
+    case 'nao_com_em_sistema':  return [59,  130, 246]
+    default:                    return [110, 110, 120]
   }
+}
+
+function diaSemana(dateKey) {
+  const dias = ['DOMINGO','SEGUNDA','TERÇA','QUARTA','QUINTA','SEXTA','SÁBADO']
+  const [y, m, d] = dateKey.split('-').map(Number)
+  return dias[new Date(y, m - 1, d).getDay()]
 }
 
 function globalCounts(data) {
   let pediu = 0, furou = 0, tirou = 0, total = 0
   SHIFTS.forEach(s => {
-    const rows = data[s] || []
-    rows.forEach(r => {
+    ;(data[s] || []).forEach(r => {
       if (!r.name?.trim()) return
       total++
-      if (r.status === 'aviso')   pediu++
-      if (r.status === 'ausencia') furou++
+      if (r.status === 'aviso')                        pediu++
+      if (r.status === 'ausencia')                     furou++
       if (r.status === 'tirei' || r.status === 'bloqueado') tirou++
     })
   })
   return { total, pediu, furou, tirou }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 1 — Layout simples por seção (inspirado no template_1 aba principal)
-// Seções "SAIU OU FURARAM [TURNO]" com STATUS e OBSERVAÇÕES
-// Responsável e rodapé institucional
-// ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate1({ data, dateKey, responsible }) {
-  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const emitDate = formatDatePT(dateKey)
-  const now = new Date()
-
-  const C = {
-    black:  [18,  18,  20 ],
-    white:  [255, 255, 255],
-    gray:   [110, 110, 120],
-    lgray:  [230, 230, 235],
-    orange: [249, 115, 22 ],
-    red:    [220, 38,  38 ],
-    yellow: [161, 128, 0  ],
-    purple: [139, 92,  246],
-  }
-
-  // Cabeçalho
-  doc.setFillColor(...C.black)
-  doc.rect(0, 0, pageW, 28, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(...C.orange)
-  doc.text('RELATÓRIO DE CONTROLE DE TURNOS', 14, 13)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(160, 160, 170)
-  doc.text('Relatório Confidencial — Uso Interno', 14, 20)
-  doc.text(`Data de Referência: ${emitDate}`, pageW - 14, 13, { align: 'right' })
-  doc.text(`Responsável: ${responsible || 'Não informado'}`, pageW - 14, 20, { align: 'right' })
-
-  // Linha laranja
-  doc.setFillColor(...C.orange)
-  doc.rect(0, 28, pageW, 1.5, 'F')
-
-  let y = 38
-
-  SHIFTS.forEach(shift => {
-    const rows = (data[shift] || []).filter(r => r.name?.trim())
-    if (!rows.length) return
-
-    // Verificar quebra de página
-    if (y > pageH - 40) {
-      doc.addPage()
-      y = 20
-    }
-
-    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
-
-    // Cabeçalho da seção
-    doc.setFillColor(...C.lgray)
-    doc.rect(14, y, pageW - 28, 7, 'F')
-    doc.setFillColor(...C.orange)
-    doc.rect(14, y, 3, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(...C.black)
-    doc.text(`SAIU OU FURARAM  —  ${shiftLabel}  —  ${emitDate}`, 20, y + 4.8)
-
-    // Colunas de cabeçalho da seção
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    doc.setTextColor(...C.gray)
-    doc.text('STATUS', pageW - 80, y + 4.8)
-    doc.text('OBSERVAÇÕES (MOTIVOS)', pageW - 55, y + 4.8)
-    y += 10
-
-    rows.forEach((r, i) => {
-      if (y > pageH - 25) {
-        doc.addPage()
-        y = 20
-      }
-
-      const bg = i % 2 === 0 ? [252, 252, 254] : [244, 244, 248]
-      doc.setFillColor(...bg)
-      doc.rect(14, y - 1, pageW - 28, 7.5, 'F')
-
-      // Nome
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(...C.black)
-      doc.text(`NOME: ${r.name}`, 18, y + 4)
-
-      // Status com cor
-      const label = statusLabel(r.status, r.substitutoPor)
-      let sColor = C.gray
-      if (r.status === 'aviso')   sColor = C.yellow
-      if (r.status === 'ausencia') sColor = C.red
-      if (r.status === 'substituido') sColor = C.purple
-      if (r.status === 'tirei' || r.status === 'bloqueado') sColor = C.orange
-
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7.5)
-      doc.setTextColor(...sColor)
-      doc.text(label, pageW - 80, y + 4)
-
-      // Observação
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7.5)
-      doc.setTextColor(...C.gray)
-      const obs = r.obs || '—'
-      doc.text(obs.substring(0, 38), pageW - 55, y + 4)
-
-      y += 8
-    })
-
-    y += 4 // espaço entre seções
-  })
-
-  // Resumo global
-  if (y > pageH - 55) { doc.addPage(); y = 20 }
-  y += 4
-
-  const g = globalCounts(data)
-
-  doc.setFillColor(...C.black)
-  doc.rect(14, y, pageW - 28, 7, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...C.white)
-  doc.text('RESUMO GERAL', 18, y + 4.8)
-  y += 10
-
-  const resumo = [
-    [`Total — PEDIU PRA SAIR`, g.pediu],
-    [`Total — FUROU`,           g.furou],
-    [`Total — TIRAMOS / BLOQUEADO`, g.tirou],
-    [`Total de Registros`,      g.total],
-  ]
-
-  resumo.forEach(([label, val], i) => {
-    const isBold = i === resumo.length - 1
-    doc.setFillColor(i % 2 === 0 ? 242 : 248, i % 2 === 0 ? 242 : 248, i % 2 === 0 ? 246 : 252)
-    doc.rect(14, y - 1, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', isBold ? 'bold' : 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...C.black)
-    doc.text(label, 18, y + 4)
-    doc.setFont('helvetica', 'bold')
-    if (isBold) doc.setTextColor(...C.orange); else doc.setTextColor(...C.black)
-    doc.text(String(val), pageW - 18, y + 4, { align: 'right' })
-    y += 8
-  })
-
-  // Assinatura
-  y += 10
-  if (y < pageH - 30) {
-    doc.setDrawColor(...C.gray)
-    doc.line(pageW - 85, y, pageW - 14, y)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...C.gray)
-    doc.text(`Responsável: ${responsible || '__________________________'}`, pageW - 50, y + 5, { align: 'center' })
-    doc.text('Relatório Confidencial — Uso Interno', 14, y + 5)
-  }
-
-  // Rodapé em todas as páginas
-  _addFooter(doc, pageH, pageW, now, responsible)
-
-  doc.save(`NEXUS_Relatorio_Turnos_${dateKey}.pdf`)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 2 — Tabela formal (inspirado no Modelo 2 com colunas Nº/Nome/Status/Turno/Observação)
-// Uma tabela única com todos os registros, coluna TURNO explícita, resumo no final
-// ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate2({ data, dateKey, responsible }) {
-  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const emitDate = formatDatePT(dateKey)
-  const now = new Date()
-
-  const C = {
-    black:  [18,  18,  20 ],
-    white:  [255, 255, 255],
-    gray:   [110, 110, 120],
-    lgray:  [240, 240, 244],
-    orange: [249, 115, 22 ],
-  }
-
-  // Header institucional
-  doc.setFillColor(...C.black)
-  doc.rect(0, 0, pageW, 32, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.setTextColor(...C.orange)
-  doc.text('RELATÓRIO DE CONTROLE DE TURNOS', 14, 12)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(160, 160, 170)
-  doc.text('Relatório Confidencial — Uso Interno', 14, 19)
-  doc.text(`Data de Referência: ${emitDate}`, 14, 26)
-  doc.text(`Responsável: ${responsible || 'Não informado'}`, pageW - 14, 19, { align: 'right' })
-  doc.setFillColor(...C.orange)
-  doc.rect(0, 32, pageW, 1.5, 'F')
-
-  // Monta todas as linhas numa tabela única com coluna TURNO
-  const allRows = []
-  let counter = 1
-  SHIFTS.forEach(shift => {
-    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
-    ;(data[shift] || []).filter(r => r.name?.trim()).forEach(r => {
-      allRows.push({
-        num: String(counter++).padStart(2, '0'),
-        name: r.name,
-        status: statusLabel(r.status, r.substitutoPor),
-        rawStatus: r.status,
-        shift: shiftLabel,
-        obs: r.obs || '—',
-      })
-    })
-  })
-
-  autoTable(doc, {
-    startY: 40,
-    head: [['Nº', 'Nome do Funcionário', 'Status', 'Turno', 'Observação']],
-    body: allRows.map(r => [r.num, r.name, r.status, r.shift, r.obs]),
-    margin: { left: 14, right: 14 },
-    styles: {
-      fontSize: 8,
-      cellPadding: 3.5,
-      textColor: C.black,
-      font: 'helvetica',
-    },
-    headStyles: {
-      fillColor: C.black,
-      textColor: C.white,
-      fontStyle: 'bold',
-      fontSize: 8,
-    },
-    alternateRowStyles: { fillColor: [248, 248, 252] },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      2: { cellWidth: 50 },
-      3: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
-    },
-    didParseCell(hookData) {
-      if (hookData.section === 'body' && hookData.column.index === 2) {
-        const row = allRows[hookData.row.index]
-        if (!row) return
-        switch (row.rawStatus) {
-          case 'aviso':    hookData.cell.styles.textColor = [130, 100, 0];   break
-          case 'ausencia': hookData.cell.styles.textColor = [200, 30,  30];  break
-          case 'substituido': hookData.cell.styles.textColor = [120, 60, 200]; break
-          case 'bloqueado':   hookData.cell.styles.textColor = [200, 80, 10];  break
-          case 'tirei':       hookData.cell.styles.textColor = [200, 80, 10];  break
-          default:            hookData.cell.styles.textColor = [100, 100, 110]
-        }
-      }
-      // Linha de agrupamento por turno — fundo diferenciado
-      if (hookData.section === 'body' && hookData.column.index === 3) {
-        hookData.cell.styles.fontStyle = 'bold'
-        hookData.cell.styles.textColor = C.orange
-      }
-    },
-  })
-
-  // Resumo
-  const finalY = doc.lastAutoTable.finalY + 8
-  let ry = finalY
-  if (ry > pageH - 50) { doc.addPage(); ry = 20 }
-
-  const g = globalCounts(data)
-
-  doc.setFillColor(...C.black)
-  doc.rect(14, ry, pageW - 28, 7, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...C.white)
-  doc.text('RESUMO GERAL', 18, ry + 4.8)
-  ry += 9
-
-  const resumo = [
-    ['Total — PEDIU PRA SAIR', g.pediu],
-    ['Total — FUROU',           g.furou],
-    ['Total — TIRAMOS / BLOQUEADO', g.tirou],
-    ['Total de Registros',      g.total],
-  ]
-
-  resumo.forEach(([label, val], i) => {
-    doc.setFillColor(i % 2 === 0 ? 242 : 248, i % 2 === 0 ? 242 : 248, i % 2 === 0 ? 246 : 252)
-    doc.rect(14, ry - 1, pageW - 28, 7, 'F')
-    doc.setFont('helvetica', i === resumo.length - 1 ? 'bold' : 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...C.black)
-    doc.text(label, 18, ry + 4)
-    doc.setFont('helvetica', 'bold')
-    if (i === resumo.length - 1) doc.setTextColor(...C.orange); else doc.setTextColor(...C.black)
-    doc.text(String(val), pageW - 18, ry + 4, { align: 'right' })
-    ry += 8
-  })
-
-  _addFooter(doc, pageH, pageW, now, responsible)
-  doc.save(`NEXUS_Modelo2_Turnos_${dateKey}.pdf`)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE 3 — Layout com separadores "·" e numeração por turno
-// (inspirado na aba "Turnos 14·03" do template_1)
-// Cada turno tem numeração própria, legenda de ocorrências no rodapé
-// ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate3({ data, dateKey, responsible }) {
-  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const emitDate = formatDatePT(dateKey)
-  const now = new Date()
-
-  const C = {
-    black:  [18,  18,  20 ],
-    white:  [255, 255, 255],
-    gray:   [110, 110, 120],
-    lgray:  [236, 236, 240],
-    orange: [249, 115, 22 ],
-    red:    [220, 38,  38 ],
-    yellow: [161, 128, 0  ],
-    green:  [22,  163, 74 ],
-    purple: [139, 92,  246],
-    blue:   [59,  130, 246],
-  }
-
-  // Header minimalista com separadores ·
-  doc.setFillColor(...C.black)
-  doc.rect(0, 0, pageW, 24, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...C.white)
-  doc.text(`RELATÓRIO DE CONTROLE DE TURNOS  ·  ${emitDate}`, 14, 11)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(160, 160, 170)
-  doc.text(`Responsável: ${responsible || 'SEU NOME'}  ·  Relatório Confidencial — Uso Interno`, 14, 19)
-  doc.setFillColor(...C.orange)
-  doc.rect(0, 24, pageW, 1, 'F')
-
-  let y = 32
-
-  SHIFTS.forEach(shift => {
-    const rows = (data[shift] || []).filter(r => r.name?.trim())
-    if (!rows.length) return
-
-    if (y > pageH - 45) { doc.addPage(); y = 20 }
-
-    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
-    const counts = countStatus(rows)
-
-    // Cabeçalho do turno com ·
-    doc.setFillColor(...C.lgray)
-    doc.rect(14, y, pageW - 28, 8, 'F')
-    doc.setFillColor(...C.orange)
-    doc.rect(14, y, 2.5, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(...C.black)
-    doc.text(`SAIU OU FURARAM  ·  ${shiftLabel}`, 20, y + 5.3)
-
-    // Mini-stats à direita
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(...C.gray)
-    doc.text(`${counts.total} reg  ·  ${counts.pediu} pediu  ·  ${counts.furou} furou`, pageW - 18, y + 5.3, { align: 'right' })
-    y += 10
-
-    // Linhas com numeração por turno (reinicia a cada seção)
-    const tableRows = rows.map((r, i) => {
-      const label = statusLabel(r.status, r.substitutoPor)
-      return [String(i + 1), r.name, label, r.obs || '—']
-    })
-
-    autoTable(doc, {
-      startY: y,
-      head: [['#', 'Entregador', 'Ocorrência', 'Observação']],
-      body: tableRows,
-      margin: { left: 14, right: 14 },
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-        textColor: C.black,
-      },
-      headStyles: {
-        fillColor: [30, 30, 36],
-        textColor: C.white,
-        fontStyle: 'bold',
-        fontSize: 7.5,
-      },
-      alternateRowStyles: { fillColor: [250, 250, 253] },
-      columnStyles: {
-        0: { cellWidth: 10, halign: 'center', textColor: C.gray },
-        2: { cellWidth: 55 },
-      },
-      didParseCell(hookData) {
-        if (hookData.section === 'body' && hookData.column.index === 2) {
-          const row = rows[hookData.row.index]
-          if (!row) return
-          switch (row.status) {
-            case 'aviso':               hookData.cell.styles.textColor = C.yellow;  break
-            case 'ausencia':            hookData.cell.styles.textColor = C.red;     break
-            case 'substituido':         hookData.cell.styles.textColor = C.purple;  break
-            case 'bloqueado':           hookData.cell.styles.textColor = C.orange;  break
-            case 'tirei':               hookData.cell.styles.textColor = C.orange;  break
-            case 'ausencia_em_sistema': hookData.cell.styles.textColor = C.green;   break
-            case 'nao_com_em_sistema':  hookData.cell.styles.textColor = C.blue;    break
-            default:                    hookData.cell.styles.textColor = C.gray
-          }
-        }
-      },
-    })
-
-    y = doc.lastAutoTable.finalY + 8
-  })
-
-  // Resumo geral
-  if (y > pageH - 50) { doc.addPage(); y = 20 }
-
-  const g = globalCounts(data)
-  const resumo = [
-    ['Total — PEDIU PRA SAIR',        g.pediu ],
-    ['Total — FUROU',                  g.furou ],
-    ['Total — TIRAMOS / BLOQUEADO',    g.tirou ],
-    ['Total de Registros',             g.total ],
-  ]
-
-  autoTable(doc, {
-    startY: y,
-    head: [['RESUMO GERAL', '']],
-    body: resumo,
-    margin: { left: 14, right: 14 },
-    styles: { fontSize: 8.5, cellPadding: 3.5 },
-    headStyles: { fillColor: C.black, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
-    alternateRowStyles: { fillColor: [248, 248, 252] },
-    columnStyles: {
-      0: { fontStyle: 'normal' },
-      1: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
-    },
-  })
-
-  // Legenda de ocorrências (estilo da aba Turnos 14·03)
-  const legY = doc.lastAutoTable.finalY + 10
-  if (legY < pageH - 20) {
-    doc.setPage(doc.internal.getNumberOfPages())
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(...C.gray)
-    doc.text(
-      'OCORRÊNCIAS →  Pediu pra sair  |  Furou  |  Tiramos  |  Bloqueado  |  Aus. em sistema  |  Coluna OBSERVAÇÃO livre para edição',
-      14, legY
-    )
-    // Bolinhas coloridas de legenda
-    const legendItems = [
-      { color: C.yellow, x: 36 },
-      { color: C.red,    x: 73 },
-      { color: C.orange, x: 88 },
-      { color: C.orange, x: 100 },
-      { color: C.green,  x: 115 },
-    ]
-    legendItems.forEach(({ color, x }) => {
-      doc.setFillColor(...color)
-      doc.circle(x, legY - 1.5, 1, 'F')
-    })
-  }
-
-  _addFooter(doc, pageH, pageW, now, responsible)
-  doc.save(`NEXUS_Modelo3_Turnos_${dateKey}.pdf`)
-}
-
-// ── Rodapé comum ──────────────────────────────────────────────────────────────
-function _addFooter(doc, pageH, pageW, now, responsible) {
+function addFooter(doc, pageH, pageW, now) {
   const total = doc.internal.getNumberOfPages()
   for (let p = 1; p <= total; p++) {
     doc.setPage(p)
@@ -540,4 +71,487 @@ function _addFooter(doc, pageH, pageW, now, responsible) {
     )
     doc.text(`Página ${p} de ${total}`, pageW - 14, pageH - 3.5, { align: 'right' })
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATE 1
+// Fiel ao template_1 (aba "Controle de Turnos"):
+//   RELATÓRIO DE CONTROLE DE TURNOS
+//   Data de Referência: DD/MM
+//   SAIU OU FURARAM [TURNO] [DATA]   |  STATUS  |  OBSERVAÇÕES (MOTIVOS)
+//   NOME: [NOME EM MAIÚSCULO]           [STATUS]    [OBS]
+//   ...
+//   Total — PEDIU PRA SAIR   N
+//   Total — FUROU             N
+//   Total de Registros        N
+//   RESPONSÁVEL: ___________   Relatório Confidencial — Uso Interno   Pág. 1
+// ─────────────────────────────────────────────────────────────────────────────
+export function generatePDFTemplate1({ data, dateKey, responsible }) {
+  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const emitDate = formatDatePT(dateKey)
+  const now = new Date()
+
+  const black  = [18,  18,  20 ]
+  const white  = [255, 255, 255]
+  const gray   = [110, 110, 120]
+  const lgray  = [235, 235, 238]
+  const orange = [249, 115, 22 ]
+
+  // ── Cabeçalho ──
+  doc.setFillColor(...black)
+  doc.rect(0, 0, pageW, 26, 'F')
+  doc.setFillColor(...orange)
+  doc.rect(0, 26, pageW, 1.5, 'F')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(14)
+  doc.setTextColor(...white)
+  doc.text('RELATÓRIO DE CONTROLE DE TURNOS', 14, 11)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(160, 160, 170)
+  doc.text(`Data de Referência: ${emitDate}`, 14, 19)
+  doc.text(`Responsável: ${responsible || ''}`, pageW - 14, 19, { align: 'right' })
+
+  let y = 34
+
+  SHIFTS.forEach(shift => {
+    const rows = (data[shift] || []).filter(r => r.name?.trim())
+    if (!rows.length) return
+
+    if (y > pageH - 40) { doc.addPage(); y = 18 }
+
+    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
+
+    // Cabeçalho da seção — fundo cinza claro, igual ao Excel
+    doc.setFillColor(...lgray)
+    doc.rect(14, y, pageW - 28, 8, 'F')
+    doc.setFillColor(...orange)
+    doc.rect(14, y, 3, 8, 'F')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...black)
+    doc.text(`SAIU OU FURARAM ${shiftLabel} ${emitDate}`, 20, y + 5.3)
+
+    // Colunas de cabeçalho
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...gray)
+    doc.text('STATUS', pageW - 72, y + 5.3)
+    doc.text('OBSERVAÇÕES (MOTIVOS)', pageW - 55, y + 5.3)
+
+    y += 10
+
+    rows.forEach((r, i) => {
+      if (y > pageH - 22) { doc.addPage(); y = 18 }
+
+      // Fundo alternado
+      if (i % 2 === 0) {
+        doc.setFillColor(250, 250, 252)
+        doc.rect(14, y - 1.5, pageW - 28, 8, 'F')
+      }
+
+      // NOME:
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(...black)
+      doc.text(`NOME: ${r.name.toUpperCase()}`, 18, y + 3.5)
+
+      // Status colorido
+      const sc = statusColor(r.status)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(...sc)
+      doc.text(statusLabel(r.status, r.substitutoPor), pageW - 72, y + 3.5)
+
+      // Observação
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...gray)
+      const obs = (r.obs || '').substring(0, 35)
+      doc.text(obs, pageW - 55, y + 3.5)
+
+      y += 8
+    })
+
+    y += 5
+  })
+
+  // ── Resumo ──
+  if (y > pageH - 45) { doc.addPage(); y = 18 }
+
+  const g = globalCounts(data)
+  y += 2
+
+  const resumo = [
+    ['Total — PEDIU PRA SAIR', g.pediu ],
+    ['Total — FUROU',           g.furou ],
+    ['Total de Registros',      g.total ],
+  ]
+
+  resumo.forEach(([label, val], i) => {
+    const isTotal = i === resumo.length - 1
+    doc.setFillColor(isTotal ? 240 : 248, isTotal ? 240 : 248, isTotal ? 244 : 252)
+    doc.rect(14, y - 1, pageW - 28, 7, 'F')
+    doc.setFont('helvetica', isTotal ? 'bold' : 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...black)
+    doc.text(label, 18, y + 4)
+    doc.setFont('helvetica', 'bold')
+    if (isTotal) { doc.setTextColor(...orange) } else { doc.setTextColor(...black) }
+    doc.text(String(val), pageW - 18, y + 4, { align: 'right' })
+    y += 8
+  })
+
+  // ── Rodapé de assinatura (igual ao Excel: linha + responsável + "Relatório Confidencial") ──
+  y += 12
+  if (y < pageH - 20) {
+    doc.setDrawColor(...gray)
+    doc.line(14, y, 90, y)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...gray)
+    doc.text(`RESPONSÁVEL: ${responsible || '__________________________'}`, 14, y + 6)
+    doc.text('Relatório Confidencial — Uso Interno', pageW / 2, y + 6, { align: 'center' })
+    doc.text(`Pág. 1`, pageW - 14, y + 6, { align: 'right' })
+  }
+
+  addFooter(doc, pageH, pageW, now)
+  doc.save(`NEXUS_Relatorio_Turnos_${dateKey}.pdf`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATE 2
+// Fiel ao Modelo 2 (Jeniffer_ADS):
+//   RELATÓRIO DE CONTROLE DE TURNOS
+//   Data de Referência:   Responsável: Jeniffer
+//   Nº | Nome do Funcionário | Status | Turno | Observação
+//   --- linha de seção: SAIU OU FURARAM [TURNO] ---
+//   1  | nome                | PEDIU  | ALMOÇO |
+//   ...
+//   RESUMO GERAL
+//   Total — PEDIU PRA SAIR   22
+//   Total — FUROU             5
+//   Total de Registros        27
+// ─────────────────────────────────────────────────────────────────────────────
+export function generatePDFTemplate2({ data, dateKey, responsible }) {
+  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const emitDate = formatDatePT(dateKey)
+  const now = new Date()
+
+  const black  = [18,  18,  20 ]
+  const white  = [255, 255, 255]
+  const gray   = [110, 110, 120]
+  const orange = [249, 115, 22 ]
+
+  // ── Cabeçalho ──
+  doc.setFillColor(...black)
+  doc.rect(0, 0, pageW, 30, 'F')
+  doc.setFillColor(...orange)
+  doc.rect(0, 30, pageW, 1.5, 'F')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(...white)
+  doc.text('RELATÓRIO DE CONTROLE DE TURNOS', 14, 11)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(160, 160, 170)
+  doc.text('Relatório Confidencial — Uso Interno', 14, 18)
+  doc.text(`Data de Referência: ${emitDate}`, 14, 25)
+  doc.text(`Responsável: ${responsible || 'Não informado'}`, pageW - 14, 25, { align: 'right' })
+
+  // ── Monta body com linhas de seção intercaladas ──
+  // Cada linha de seção = linha especial com colSpan via didParseCell
+  const tableBody = []
+  const sectionRows = new Set() // índices das linhas de seção
+  let counter = 1
+
+  SHIFTS.forEach(shift => {
+    const rows = (data[shift] || []).filter(r => r.name?.trim())
+    if (!rows.length) return
+
+    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
+
+    // Linha de seção
+    sectionRows.add(tableBody.length)
+    tableBody.push([`SAIU OU FURARAM ${shiftLabel}`, '', '', '', ''])
+
+    rows.forEach(r => {
+      tableBody.push([
+        String(counter++).padStart(2, '0'),
+        r.name.toUpperCase(),
+        statusLabel(r.status, r.substitutoPor),
+        shiftLabel,
+        r.obs || '',
+      ])
+    })
+  })
+
+  // Guarda status original para colorir
+  let dataCounter = 0
+  const statusMap = []
+  SHIFTS.forEach(shift => {
+    ;(data[shift] || []).filter(r => r.name?.trim()).forEach(r => {
+      statusMap.push(r.status)
+    })
+  })
+
+  autoTable(doc, {
+    startY: 38,
+    head: [['Nº', 'Nome do Funcionário', 'Status', 'Turno', 'Observação']],
+    body: tableBody,
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 3, textColor: black },
+    headStyles: {
+      fillColor: black,
+      textColor: white,
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: { fillColor: [248, 248, 252] },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      2: { cellWidth: 48 },
+      3: { cellWidth: 20, halign: 'center', fontStyle: 'bold', textColor: orange },
+    },
+    didParseCell(hookData) {
+      const rowIdx = hookData.row.index
+
+      // Linha de seção — fundo escuro, texto branco, span visual
+      if (sectionRows.has(rowIdx)) {
+        hookData.cell.styles.fillColor = [30, 30, 36]
+        hookData.cell.styles.textColor = orange
+        hookData.cell.styles.fontStyle = 'bold'
+        hookData.cell.styles.fontSize  = 8.5
+        if (hookData.column.index > 0) {
+          hookData.cell.styles.textColor = [30, 30, 36] // invisível nas outras colunas
+        }
+      }
+
+      // Status colorido
+      if (!sectionRows.has(rowIdx) && hookData.section === 'body' && hookData.column.index === 2) {
+        // conta linhas de dados antes desse row
+        let dataIdx = 0
+        for (let i = 0; i < rowIdx; i++) {
+          if (!sectionRows.has(i)) dataIdx++
+        }
+        const st = statusMap[dataIdx]
+        if (st) hookData.cell.styles.textColor = statusColor(st)
+      }
+    },
+  })
+
+  // ── Resumo ──
+  let ry = doc.lastAutoTable.finalY + 8
+  if (ry > pageH - 45) { doc.addPage(); ry = 18 }
+
+  const g = globalCounts(data)
+  const resumo = [
+    ['Total — PEDIU PRA SAIR', g.pediu ],
+    ['Total — FUROU',           g.furou ],
+    ['Total de Registros',      g.total ],
+  ]
+
+  autoTable(doc, {
+    startY: ry,
+    head: [['RESUMO GERAL', '']],
+    body: resumo,
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8.5, cellPadding: 3.5 },
+    headStyles: { fillColor: black, textColor: white, fontStyle: 'bold', fontSize: 9 },
+    alternateRowStyles: { fillColor: [248, 248, 252] },
+    columnStyles: {
+      0: { fontStyle: 'normal' },
+      1: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+    },
+    didParseCell(hookData) {
+      if (hookData.section === 'body' && hookData.row.index === resumo.length - 1) {
+        hookData.cell.styles.fontStyle = 'bold'
+        if (hookData.column.index === 1) hookData.cell.styles.textColor = orange
+      }
+    },
+  })
+
+  addFooter(doc, pageH, pageW, now)
+  doc.save(`NEXUS_Modelo2_Turnos_${dateKey}.pdf`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATE 3
+// Fiel à aba "Turnos 14·03" do template_2:
+//   RELATÓRIO DE CONTROLE DE TURNOS  ·  DD/MM/AAAA
+//   Responsável: SEU NOME  ·  Relatório Confidencial — Uso Interno
+//
+//   # | ENTREGADOR | TURNO | OCORRÊNCIA | OBSERVAÇÃO
+//   SAIU OU FURARAM  ·  ALMOÇO  ·  SÁBADO 14/03
+//   1 | NOME | ALMOÇO | PEDIU PRA SAIR |
+//   ...  (numeração reinicia a cada turno)
+//
+//   RESUMO GERAL
+//   Total — PEDIU PRA SAIR   22
+//   Total — FUROU              5
+//   Total — FALTOU SEM AVISO   0
+//   Total — ATESTADO           0
+//   Total de Registros        27
+//
+//   OCORRÊNCIAS → 🔴 Pediu pra sair  🟠 Furou  🔴 Faltou sem aviso  🟢 Atestado  ⚪ Outro
+// ─────────────────────────────────────────────────────────────────────────────
+export function generatePDFTemplate3({ data, dateKey, responsible }) {
+  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const emitDate = formatDatePT(dateKey)
+  const now = new Date()
+  const dia = diaSemana(dateKey)
+
+  const black  = [18,  18,  20 ]
+  const white  = [255, 255, 255]
+  const gray   = [110, 110, 120]
+  const orange = [249, 115, 22 ]
+
+  // ── Cabeçalho minimalista com · ──
+  doc.setFillColor(...black)
+  doc.rect(0, 0, pageW, 22, 'F')
+  doc.setFillColor(...orange)
+  doc.rect(0, 22, pageW, 1, 'F')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(...white)
+  doc.text(`RELATÓRIO DE CONTROLE DE TURNOS  ·  ${emitDate}`, 14, 10)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(160, 160, 170)
+  doc.text(
+    `Responsável: ${responsible || 'SEU NOME'}  ·  Relatório Confidencial — Uso Interno`,
+    14, 18
+  )
+
+  // ── Monta body com linhas de seção ──
+  const tableBody  = []
+  const sectionRows = new Set()
+  const rowStatusMap = [] // só linhas de dados
+
+  SHIFTS.forEach(shift => {
+    const rows = (data[shift] || []).filter(r => r.name?.trim())
+    if (!rows.length) return
+
+    const shiftLabel = SHIFT_LABELS[shift]?.toUpperCase() || shift.toUpperCase()
+
+    sectionRows.add(tableBody.length)
+    tableBody.push([`SAIU OU FURARAM  ·  ${shiftLabel}  ·  ${dia} ${emitDate}`, '', '', '', ''])
+
+    rows.forEach((r, i) => {
+      tableBody.push([
+        String(i + 1), // numeração reinicia por turno
+        r.name.toUpperCase(),
+        shiftLabel,
+        statusLabel(r.status, r.substitutoPor),
+        r.obs || '',
+      ])
+      rowStatusMap.push(r.status)
+    })
+  })
+
+  autoTable(doc, {
+    startY: 30,
+    head: [['#', 'ENTREGADOR', 'TURNO', 'OCORRÊNCIA', 'OBSERVAÇÃO']],
+    body: tableBody,
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 3, textColor: black },
+    headStyles: {
+      fillColor: [30, 30, 36],
+      textColor: white,
+      fontStyle: 'bold',
+      fontSize: 7.5,
+    },
+    alternateRowStyles: { fillColor: [250, 250, 253] },
+    columnStyles: {
+      0: { cellWidth: 9,  halign: 'center', textColor: gray },
+      2: { cellWidth: 20, halign: 'center', fontStyle: 'bold', textColor: orange },
+      3: { cellWidth: 50 },
+    },
+    didParseCell(hookData) {
+      const rowIdx = hookData.row.index
+
+      // Linha de seção
+      if (sectionRows.has(rowIdx)) {
+        hookData.cell.styles.fillColor  = [30, 30, 36]
+        hookData.cell.styles.fontStyle  = 'bold'
+        hookData.cell.styles.fontSize   = 8.5
+        if (hookData.column.index === 0) {
+          hookData.cell.styles.textColor = orange
+        } else {
+          hookData.cell.styles.textColor = [30, 30, 36]
+        }
+      }
+
+      // Ocorrência colorida
+      if (!sectionRows.has(rowIdx) && hookData.section === 'body' && hookData.column.index === 3) {
+        let dataIdx = 0
+        for (let i = 0; i < rowIdx; i++) {
+          if (!sectionRows.has(i)) dataIdx++
+        }
+        const st = rowStatusMap[dataIdx]
+        if (st) hookData.cell.styles.textColor = statusColor(st)
+      }
+    },
+  })
+
+  // ── Resumo ──
+  let ry = doc.lastAutoTable.finalY + 8
+  if (ry > pageH - 55) { doc.addPage(); ry = 18 }
+
+  const g = globalCounts(data)
+  const resumo = [
+    ['Total — PEDIU PRA SAIR',     g.pediu ],
+    ['Total — FUROU',               g.furou ],
+    ['Total — FALTOU SEM AVISO',    0       ],
+    ['Total — ATESTADO',            0       ],
+    ['Total de Registros',          g.total ],
+  ]
+
+  autoTable(doc, {
+    startY: ry,
+    head: [['RESUMO GERAL', '']],
+    body: resumo,
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8.5, cellPadding: 3.5 },
+    headStyles: { fillColor: black, textColor: white, fontStyle: 'bold', fontSize: 9 },
+    alternateRowStyles: { fillColor: [248, 248, 252] },
+    columnStyles: {
+      0: { fontStyle: 'normal' },
+      1: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+    },
+    didParseCell(hookData) {
+      if (hookData.section === 'body' && hookData.row.index === resumo.length - 1) {
+        hookData.cell.styles.fontStyle = 'bold'
+        if (hookData.column.index === 1) hookData.cell.styles.textColor = orange
+      }
+    },
+  })
+
+  // ── Legenda de ocorrências (fiel ao template) ──
+  const legY = doc.lastAutoTable.finalY + 8
+  if (legY < pageH - 16) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...gray)
+    doc.text(
+      'OCORRÊNCIAS \u2192   \uD83D\uDD34 Pediu pra sair   \uD83D\uDFE0 Furou   \uD83D\uDD34 Faltou sem aviso   \uD83D\uDFE2 Atestado   \u26AA Outro   |   Coluna OBSERVA\u00C7\u00C3O livre para edi\u00E7\u00E3o',
+      14, legY
+    )
+  }
+
+  addFooter(doc, pageH, pageW, now)
+  doc.save(`NEXUS_Modelo3_Turnos_${dateKey}.pdf`)
 }
