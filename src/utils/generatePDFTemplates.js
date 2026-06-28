@@ -292,27 +292,39 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
       const i = hookData.row.index
 
       if (sectionRows.has(i)) {
-        // Linha de seção: azul escuro, texto branco negrito
         hookData.cell.styles.fillColor  = navyDark
-        hookData.cell.styles.textColor  = white
+        hookData.cell.styles.textColor  = navyDark
         hookData.cell.styles.fontStyle  = 'bold'
         hookData.cell.styles.fontSize   = 9
-        if (hookData.column.index > 0) hookData.cell.styles.textColor = navyDark
         return
       }
 
-      // Linha normal: alternado bege/branco
       let dataIdx = 0
       for (let k = 0; k < i; k++) { if (!sectionRows.has(k)) dataIdx++ }
       const isEven = dataIdx % 2 === 0
       hookData.cell.styles.fillColor = isEven ? beige : white
 
-      // Status: negrito, FUROU=vermelho resto=preto
       if (hookData.column.index === 2) {
         const st = rowStatusArr[dataIdx]
         hookData.cell.styles.fontStyle = 'bold'
         hookData.cell.styles.textColor = (st === 'ausencia') ? red : black
       }
+    },
+    didDrawRow(hookData) {
+      const i = hookData.row.index
+      if (!sectionRows.has(i)) return
+      // Desenha texto da seção cobrindo toda a largura da linha
+      const cell0 = hookData.row.cells[0]
+      const rowW  = hookData.row.cells[Object.keys(hookData.row.cells).length - 1]
+      const totalW = (rowW.x + rowW.width) - cell0.x
+      doc.setFillColor(...navyDark)
+      doc.rect(cell0.x, cell0.y, totalW, cell0.height, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(...white)
+      // Texto da seção está na primeira coluna do body
+      const txt = hookData.row.cells[0].raw || ''
+      doc.text(txt, cell0.x + 4, cell0.y + cell0.height / 2 + 3)
     },
   })
 
@@ -454,35 +466,40 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
 
       if (sectionRows.has(i)) {
         hookData.cell.styles.fillColor = bgSec
+        hookData.cell.styles.textColor = bgSec  // oculta texto padrão
         hookData.cell.styles.fontStyle = 'bold'
         hookData.cell.styles.fontSize  = 8.5
-        if (hookData.column.index === 0) {
-          hookData.cell.styles.textColor = white
-        } else {
-          // invisível nas outras colunas
-          hookData.cell.styles.textColor = bgSec
-        }
         return
       }
 
-      // Linhas alternadas
       let dataIdx = 0
       for (let k = 0; k < i; k++) { if (!sectionRows.has(k)) dataIdx++ }
       hookData.cell.styles.fillColor = dataIdx % 2 === 0 ? bgMain : bgAlt
 
-      // OCORRÊNCIA colorida
       if (hookData.column.index === 3) {
         const st = rowStatusArr[dataIdx]
         if (st) hookData.cell.styles.textColor = getOcorrenciaColor(st)
       }
     },
-    didDrawCell(hookData) {
-      // Borda esquerda azul nas linhas de seção
-      if (sectionRows.has(hookData.row.index) && hookData.column.index === 0) {
-        const { x, y, height } = hookData.cell
-        doc.setFillColor(...blue)
-        doc.rect(x, y, 2.5, height, 'F')
-      }
+    didDrawRow(hookData) {
+      const i = hookData.row.index
+      if (!sectionRows.has(i)) return
+      const cell0  = hookData.row.cells[0]
+      const cells  = hookData.row.cells
+      const lastKey = Object.keys(cells)[Object.keys(cells).length - 1]
+      const totalW = (cells[lastKey].x + cells[lastKey].width) - cell0.x
+      // Fundo da seção
+      doc.setFillColor(...bgSec)
+      doc.rect(cell0.x, cell0.y, totalW, cell0.height, 'F')
+      // Borda esquerda azul
+      doc.setFillColor(...blue)
+      doc.rect(cell0.x, cell0.y, 2.5, cell0.height, 'F')
+      // Texto
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8.5)
+      doc.setTextColor(...white)
+      const txt = hookData.row.cells[0].raw || ''
+      doc.text(txt, cell0.x + 6, cell0.y + cell0.height / 2 + 3)
     },
   })
 
