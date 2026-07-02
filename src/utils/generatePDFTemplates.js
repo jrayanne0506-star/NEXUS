@@ -132,7 +132,12 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
       const statusText  = statusLabel(r.status, r.substitutoPor)
       const statusMaxW  = 40 // largura útil da coluna STATUS
       const statusLines = doc.splitTextToSize(statusText, statusMaxW)
-      const rowH = Math.max(8, statusLines.length * 3.6 + 4.5)
+
+      const obsMaxW  = totalW - nameW - 46 - 3 // largura útil da coluna OBSERVAÇÕES
+      const obsLines = doc.splitTextToSize((r.obs || '').toUpperCase(), obsMaxW)
+
+      const neededLines = Math.max(statusLines.length, obsLines.length)
+      const rowH = Math.max(8, neededLines * 3.6 + 4.5)
 
       if (y > pageH - 20) { doc.addPage(); y = 14 }
 
@@ -149,9 +154,9 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
       doc.text(statusLines, 14 + nameW + 4, y + 4.8)
 
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(7)
       doc.setTextColor(...white)
-      doc.text((r.obs || '').toUpperCase().substring(0, 28), 14 + nameW + 46, y + rowH / 2 + 1.2)
+      doc.text(obsLines, 14 + nameW + 46, y + 4.8)
 
       y += rowH
     })
