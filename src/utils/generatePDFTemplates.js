@@ -4,13 +4,13 @@ import { SHIFT_LABELS, SHIFTS, formatDatePT } from './storage'
 
 function statusLabel(status, substitutoPor) {
   switch (status) {
-    case 'ausencia':            return 'FUROU'
-    case 'aviso':               return 'PEDIU PRA SAIR'
-    case 'substituido':         return substitutoPor ? `SUBSTITUÍDO: ${substitutoPor}` : 'SUBSTITUÍDO'
-    case 'bloqueado':           return 'BLOQUEADO'
-    case 'tirei':               return 'TIRAMOS'
-    case 'ausencia_em_sistema': return 'AUS. COMUNICADA (EM SISTEMA)'
-    case 'nao_com_em_sistema':  return 'AUS. NÃO COMUNICADA (EM SISTEMA)'
+    case 'ausencia':            return 'Ausência Não Comunicada'
+    case 'aviso':               return 'Ausência Comunicada'
+    case 'substituido':         return substitutoPor ? `Substituído por: ${substitutoPor}` : 'Substituído'
+    case 'bloqueado':           return 'Bloqueado'
+    case 'tirei':               return 'Tiramos'
+    case 'ausencia_em_sistema': return 'Aus. Comunicada — em sistema'
+    case 'nao_com_em_sistema':  return 'Aus. Não Comunicada — em sistema'
     default:                    return status?.toUpperCase() || '—'
   }
 }
@@ -24,8 +24,8 @@ const STATUS_COLORS = {
   ausencia:            [239, 68,  68 ], // vermelho — Ausência não comunicada
   substituido:         [167, 139, 250], // roxo     — Substituído
   bloqueado:           [249, 115, 22 ], // laranja  — Bloqueado
-  ausencia_em_sistema: [34,  197, 94 ], // verde    — Aus. comunicada em sistema
-  nao_com_em_sistema:  [96,  165, 250], // azul     — Aus. não comunicada em sistema
+  ausencia_em_sistema: [234, 179, 8  ], // amarelo  — Ausência comunicada (em sistema)
+  nao_com_em_sistema:  [239, 68,  68 ], // vermelho — Ausência não comunicada (em sistema)
   tirei:               [180, 180, 180], // cinza    — Tiramos (residual)
 }
 
@@ -168,8 +168,8 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
   y += 4
   const g = globalCounts(data)
   ;[
-    ['Total — AUS. COMUNICADA (PEDIU PRA SAIR)',        g.pediu,         STATUS_COLORS.aviso],
-    ['Total — AUS. NÃO COMUNICADA (FUROU)',              g.furou,         STATUS_COLORS.ausencia],
+    ['Total — Ausência Comunicada',                     g.pediu,         STATUS_COLORS.aviso],
+    ['Total — Ausência Não Comunicada',                  g.furou,         STATUS_COLORS.ausencia],
     ['Total — SUBSTITUÍDOS',                             g.substituido,   STATUS_COLORS.substituido],
     ['Total — BLOQUEADOS',                                g.bloqueado,     STATUS_COLORS.bloqueado],
     ['Total — AUS. COMUNICADA (EM SISTEMA)',             g.ausSistema,    STATUS_COLORS.ausencia_em_sistema],
@@ -296,8 +296,8 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
     startY: y,
     head: [['RESUMO GERAL', '']],
     body: [
-      ['Total — Aus. Comunicada (Pediu pra sair)', g.pediu],
-      ['Total — Aus. Não Comunicada (Furou)',       g.furou],
+      ['Total — Ausência Comunicada', g.pediu],
+      ['Total — Ausência Não Comunicada',       g.furou],
       ['Total — Substituídos',                      g.substituido],
       ['Total — Bloqueados',                        g.bloqueado],
       ['Total — Aus. Comunicada (em sistema)',      g.ausSistema],
@@ -422,8 +422,8 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     startY: y,
     head: [['RESUMO GERAL', '']],
     body: [
-      ['Total — Aus. Comunicada (Pediu pra sair)', g3.pediu],
-      ['Total — Aus. Não Comunicada (Furou)',       g3.furou],
+      ['Total — Ausência Comunicada', g3.pediu],
+      ['Total — Ausência Não Comunicada',       g3.furou],
       ['Total — Substituídos',                      g3.substituido],
       ['Total — Bloqueados',                        g3.bloqueado],
       ['Total — Aus. Comunicada (em sistema)',      g3.ausSistema],
@@ -453,7 +453,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     doc.setFontSize(7.5)
     doc.setTextColor(...gray)
     doc.text(
-      'OCORRÊNCIAS \u2192   \uD83D\uDFE1 Comunicada   \uD83D\uDD34 Não comunicada   \uD83D\uDFE3 Substituído   \uD83D\uDFE0 Bloqueado   \uD83D\uDFE2 Comunicada (sistema)   \uD83D\uDD35 Não comunicada (sistema)   |   Coluna OBSERVA\u00C7\u00C3O livre para edi\u00E7\u00E3o',
+      'OCORRÊNCIAS \u2192   \uD83D\uDFE1 Comunicada   \uD83D\uDD34 Não comunicada   \uD83D\uDFE3 Substituído   \uD83D\uDFE0 Bloqueado   |   Coluna OBSERVA\u00C7\u00C3O livre para edi\u00E7\u00E3o',
       14, legY
     )
   }
