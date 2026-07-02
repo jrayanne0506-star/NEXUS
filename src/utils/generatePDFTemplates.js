@@ -15,6 +15,24 @@ function statusLabel(status, substitutoPor) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PALETA DE CORES ÚNICA — mesma lógica de cores do painel NEXUS, usada em
+// TODOS os templates de PDF para manter consistência visual.
+// ─────────────────────────────────────────────────────────────────────────────
+const STATUS_COLORS = {
+  aviso:               [234, 179, 8  ], // amarelo  — Ausência comunicada
+  ausencia:            [239, 68,  68 ], // vermelho — Ausência não comunicada
+  substituido:         [167, 139, 250], // roxo     — Substituído
+  bloqueado:           [249, 115, 22 ], // laranja  — Bloqueado
+  ausencia_em_sistema: [34,  197, 94 ], // verde    — Aus. comunicada em sistema
+  nao_com_em_sistema:  [96,  165, 250], // azul     — Aus. não comunicada em sistema
+  tirei:               [180, 180, 180], // cinza    — Tiramos (residual)
+}
+
+function statusColorFor(status) {
+  return STATUS_COLORS[status] || [180, 180, 180]
+}
+
 function diaSemana(dateKey) {
   const dias = ['DOMINGO','SEGUNDA','TERÇA','QUARTA','QUINTA','SEXTA','SÁBADO']
   const [y, m, d] = dateKey.split('-').map(Number)
@@ -22,17 +40,22 @@ function diaSemana(dateKey) {
 }
 
 function globalCounts(data) {
-  let pediu = 0, furou = 0, tirou = 0, total = 0
+  let pediu = 0, furou = 0, substituido = 0, bloqueado = 0
+  let ausSistema = 0, naoComSistema = 0, tirou = 0, total = 0
   SHIFTS.forEach(s => {
     ;(data[s] || []).forEach(r => {
       if (!r.name?.trim()) return
       total++
-      if (r.status === 'aviso')    pediu++
-      if (r.status === 'ausencia') furou++
-      if (r.status === 'tirei' || r.status === 'bloqueado') tirou++
+      if (r.status === 'aviso')               pediu++
+      if (r.status === 'ausencia')             furou++
+      if (r.status === 'substituido')          substituido++
+      if (r.status === 'bloqueado')            bloqueado++
+      if (r.status === 'ausencia_em_sistema')  ausSistema++
+      if (r.status === 'nao_com_em_sistema')   naoComSistema++
+      if (r.status === 'tirei')                tirou++
     })
   })
-  return { total, pediu, furou, tirou }
+  return { total, pediu, furou, substituido, bloqueado, ausSistema, naoComSistema, tirou }
 }
 
 function addFooter(doc, pageH, pageW, now) {
@@ -64,17 +87,6 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
   const darkBg = [26,  26,  26]
   const secBg  = [80,  80,  80]
   const white  = [255, 255, 255]
-  const green  = [0,   180, 0  ]
-  const yellow = [200, 180, 0  ]
-  const red    = [220, 50,  50 ]
-  const gray   = [180, 180, 180]
-
-  function getStatusColor(status) {
-    if (status === 'aviso')                              return green
-    if (status === 'tirei' || status === 'bloqueado')   return yellow
-    if (status === 'ausencia')                           return red
-    return gray
-  }
 
   // Cabeçalho laranja
   doc.setFillColor(...orange)
@@ -133,7 +145,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
       doc.text(`NOME: ${r.name.toUpperCase()}`, 17, y + 5.3)
 
       doc.setFontSize(6.5)
-      doc.setTextColor(...getStatusColor(r.status))
+      doc.setTextColor(...statusColorFor(r.status))
       doc.text(statusLines, 14 + nameW + 4, y + 4.8)
 
       doc.setFont('helvetica', 'normal')
@@ -151,16 +163,21 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
   y += 4
   const g = globalCounts(data)
   ;[
-    ['Total — PEDIU PRA SAIR', g.pediu],
-    ['Total — FUROU',           g.furou],
-    ['Total de Registros',      g.total],
-  ].forEach(([label, val]) => {
+    ['Total — AUS. COMUNICADA (PEDIU PRA SAIR)',        g.pediu,         STATUS_COLORS.aviso],
+    ['Total — AUS. NÃO COMUNICADA (FUROU)',              g.furou,         STATUS_COLORS.ausencia],
+    ['Total — SUBSTITUÍDOS',                             g.substituido,   STATUS_COLORS.substituido],
+    ['Total — BLOQUEADOS',                                g.bloqueado,     STATUS_COLORS.bloqueado],
+    ['Total — AUS. COMUNICADA (EM SISTEMA)',             g.ausSistema,    STATUS_COLORS.ausencia_em_sistema],
+    ['Total — AUS. NÃO COMUNICADA (EM SISTEMA)',         g.naoComSistema, STATUS_COLORS.nao_com_em_sistema],
+    ['Total de Registros',                                g.total,         [40, 40, 40]],
+  ].forEach(([label, val, color]) => {
     if (y > pageH - 20) { doc.addPage(); y = 14 }
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(40, 40, 40)
     doc.text(label, 14, y + 4)
     doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...color)
     doc.text(String(val), pageW - 14, y + 4, { align: 'right' })
     y += 8
   })
@@ -196,7 +213,6 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
   const white    = [255, 255, 255]
   const beige    = [253, 245, 230]
   const black    = [20,  20,  20 ]
-  const red      = [200, 30,  30 ]
 
   // Cabeçalho azul escuro
   doc.setFillColor(...navyDark)
@@ -245,7 +261,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
 
     autoTable(doc, {
       startY: y,
-      head: [['Nº', 'ENTREGADOR', 'Status', 'Turno', 'Observação']],
+      head: [['Nº', 'Nome do Funcionário', 'Status', 'Turno', 'Observação']],
       body: tableRows,
       margin: { left: 14, right: 14 },
       styles: { fontSize: 8.5, cellPadding: 3.5, textColor: black },
@@ -260,7 +276,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
         if (hookData.section === 'body' && hookData.column.index === 2) {
           const st = statusArr[hookData.row.index]
           hookData.cell.styles.fontStyle = 'bold'
-          hookData.cell.styles.textColor = st === 'ausencia' ? red : black
+          hookData.cell.styles.textColor = statusColorFor(st)
         }
       },
     })
@@ -275,9 +291,13 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
     startY: y,
     head: [['RESUMO GERAL', '']],
     body: [
-      ['Total — PEDIU PRA SAIR', g.pediu],
-      ['Total — FUROU',           g.furou],
-      ['Total de Registros',      g.total],
+      ['Total — Aus. Comunicada (Pediu pra sair)', g.pediu],
+      ['Total — Aus. Não Comunicada (Furou)',       g.furou],
+      ['Total — Substituídos',                      g.substituido],
+      ['Total — Bloqueados',                        g.bloqueado],
+      ['Total — Aus. Comunicada (em sistema)',      g.ausSistema],
+      ['Total — Aus. Não Comunicada (em sistema)',  g.naoComSistema],
+      ['Total de Registros',                        g.total],
     ],
     margin: { left: 14, right: 14 },
     styles: { fontSize: 9, cellPadding: 3.5, textColor: black },
@@ -286,6 +306,12 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
     columnStyles: {
       0: { fontStyle: 'normal' },
       1: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+    },
+    didParseCell(hookData) {
+      if (hookData.section === 'body' && hookData.column.index === 1 && hookData.row.index < 6) {
+        const keys = ['aviso', 'ausencia', 'substituido', 'bloqueado', 'ausencia_em_sistema', 'nao_com_em_sistema']
+        hookData.cell.styles.textColor = statusColorFor(keys[hookData.row.index])
+      }
     },
   })
 
@@ -311,15 +337,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
   const white  = [255, 255, 255]
   const gray   = [140, 150, 170]
   const orange = [249, 115, 22 ]
-  const red    = [220, 50,  50 ]
   const blue   = [74,  144, 217]
-
-  function getOcorrenciaColor(status) {
-    if (status === 'aviso')                            return orange
-    if (status === 'ausencia')                         return red
-    if (status === 'tirei' || status === 'bloqueado')  return orange
-    return gray
-  }
 
   // Cabeçalho preto
   doc.setFillColor(...bgHead)
@@ -384,7 +402,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
       didParseCell(hookData) {
         if (hookData.section === 'body' && hookData.column.index === 3) {
           const st = statusArr[hookData.row.index]
-          if (st) hookData.cell.styles.textColor = getOcorrenciaColor(st)
+          if (st) hookData.cell.styles.textColor = statusColorFor(st)
         }
       },
     })
@@ -394,15 +412,18 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
 
   // Resumo
   if (y > pageH - 55) { doc.addPage(); y = 14 }
+  const g3 = globalCounts(data)
   autoTable(doc, {
     startY: y,
     head: [['RESUMO GERAL', '']],
     body: [
-      ['Total — PEDIU PRA SAIR',   globalCounts(data).pediu],
-      ['Total — FUROU',             globalCounts(data).furou],
-      ['Total — FALTOU SEM AVISO',  0],
-      ['Total — ATESTADO',          0],
-      ['Total de Registros',        globalCounts(data).total],
+      ['Total — Aus. Comunicada (Pediu pra sair)', g3.pediu],
+      ['Total — Aus. Não Comunicada (Furou)',       g3.furou],
+      ['Total — Substituídos',                      g3.substituido],
+      ['Total — Bloqueados',                        g3.bloqueado],
+      ['Total — Aus. Comunicada (em sistema)',      g3.ausSistema],
+      ['Total — Aus. Não Comunicada (em sistema)',  g3.naoComSistema],
+      ['Total de Registros',                        g3.total],
     ],
     margin: { left: 14, right: 14 },
     styles: { fontSize: 8.5, cellPadding: 3.5, textColor: white, fillColor: bgMain },
@@ -410,7 +431,13 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     alternateRowStyles: { fillColor: bgAlt },
     columnStyles: {
       0: { fontStyle: 'normal' },
-      1: { halign: 'right', fontStyle: 'bold', cellWidth: 20, textColor: orange },
+      1: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+    },
+    didParseCell(hookData) {
+      if (hookData.section === 'body' && hookData.column.index === 1 && hookData.row.index < 6) {
+        const keys = ['aviso', 'ausencia', 'substituido', 'bloqueado', 'ausencia_em_sistema', 'nao_com_em_sistema']
+        hookData.cell.styles.textColor = statusColorFor(keys[hookData.row.index])
+      }
     },
   })
 
@@ -421,7 +448,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     doc.setFontSize(7.5)
     doc.setTextColor(...gray)
     doc.text(
-      'OCORRÊNCIAS \u2192   \uD83D\uDD34 Pediu pra sair   \uD83D\uDFE0 Furou   \uD83D\uDD34 Faltou sem aviso   \uD83D\uDFE2 Atestado   \u26AA Outro   |   Coluna OBSERVA\u00C7\u00C3O livre para edi\u00E7\u00E3o',
+      'OCORRÊNCIAS \u2192   \uD83D\uDFE1 Comunicada   \uD83D\uDD34 Não comunicada   \uD83D\uDFE3 Substituído   \uD83D\uDFE0 Bloqueado   \uD83D\uDFE2 Comunicada (sistema)   \uD83D\uDD35 Não comunicada (sistema)   |   Coluna OBSERVA\u00C7\u00C3O livre para edi\u00E7\u00E3o',
       14, legY
     )
   }
