@@ -266,7 +266,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
 
     autoTable(doc, {
       startY: y,
-      head: [['Nº', 'Nome do Funcionário', 'Status', 'Turno', 'Observação']],
+      head: [['Nº', 'ENTREGADOR', 'Status', 'Turno', 'Observação']],
       body: tableRows,
       margin: { left: 14, right: 14 },
       styles: { fontSize: 8.5, cellPadding: 3.5, textColor: black },
