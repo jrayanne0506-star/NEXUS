@@ -117,19 +117,31 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
     y += 8
 
     rows.forEach(r => {
+      const statusText  = statusLabel(r.status, r.substitutoPor)
+      const statusMaxW  = 40 // largura útil da coluna STATUS
+      const statusLines = doc.splitTextToSize(statusText, statusMaxW)
+      const rowH = Math.max(8, statusLines.length * 3.6 + 4.5)
+
       if (y > pageH - 20) { doc.addPage(); y = 14 }
+
       doc.setFillColor(...darkBg)
-      doc.rect(14, y, totalW, 8, 'F')
+      doc.rect(14, y, totalW, rowH, 'F')
+
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
       doc.setTextColor(...white)
       doc.text(`NOME: ${r.name.toUpperCase()}`, 17, y + 5.3)
+
+      doc.setFontSize(6.5)
       doc.setTextColor(...getStatusColor(r.status))
-      doc.text(statusLabel(r.status, r.substitutoPor), 14 + nameW + 4, y + 5.3)
+      doc.text(statusLines, 14 + nameW + 4, y + 4.8)
+
       doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
       doc.setTextColor(...white)
-      doc.text((r.obs || '').toUpperCase().substring(0, 28), 14 + nameW + 46, y + 5.3)
-      y += 8
+      doc.text((r.obs || '').toUpperCase().substring(0, 28), 14 + nameW + 46, y + rowH / 2 + 1.2)
+
+      y += rowH
     })
     y += 4
   })
