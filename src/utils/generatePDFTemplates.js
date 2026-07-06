@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { SHIFT_LABELS, SHIFTS, formatDatePT } from './storage'
+import { registerFonts } from './registerFonts'
 
 function statusLabel(status, substitutoPor) {
   switch (status) {
@@ -62,7 +63,7 @@ function addFooter(doc, pageH, pageW, now) {
   const total = doc.internal.getNumberOfPages()
   for (let p = 1; p <= total; p++) {
     doc.setPage(p)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('Roboto', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(150, 150, 160)
     doc.text(
@@ -78,6 +79,7 @@ function addFooter(doc, pageH, pageW, now) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function generatePDFTemplate1({ data, dateKey, responsible }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const emitDate = formatDatePT(dateKey)
@@ -91,17 +93,17 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
   // Cabeçalho laranja
   doc.setFillColor(...orange)
   doc.rect(0, 0, pageW, 42, 'F')
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('Roboto', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(...white)
   doc.text('RELATÓRIO DE CONTROLE DE TURNOS', pageW / 2, 13, { align: 'center' })
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('Roboto', 'normal')
   doc.setFontSize(9)
   doc.text('Data de Referência:', pageW / 2, 23, { align: 'center' })
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('Roboto', 'bold')
   doc.text(emitDate, pageW / 2, 30, { align: 'center' })
   if (responsible) {
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('Roboto', 'normal')
     doc.setFontSize(8)
     doc.text(`Responsável: ${responsible}`, pageW / 2, 38, { align: 'center' })
   }
@@ -120,7 +122,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
     // Linha de seção cinza escuro
     doc.setFillColor(...secBg)
     doc.rect(14, y, totalW, 8, 'F')
-    doc.setFont('helvetica', 'bold')
+    doc.setFont('Roboto', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(...white)
     doc.text(`SAIU OU FURARAM ${shiftLabel} ${emitDate}`, 17, y + 5.3)
@@ -130,21 +132,21 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
 
     rows.forEach(r => {
       const statusText  = statusLabel(r.status, r.substitutoPor)
-      const statusMaxW  = 40 // largura útil da coluna STATUS
+      const statusMaxW  = 36 // largura útil da coluna STATUS (reduzida de 40 → força quebra mais cedo)
       const statusLines = doc.splitTextToSize(statusText, statusMaxW)
 
       const obsMaxW  = totalW - nameW - 46 - 3 // largura útil da coluna OBSERVAÇÕES
       const obsLines = doc.splitTextToSize((r.obs || '').toUpperCase(), obsMaxW)
 
       const neededLines = Math.max(statusLines.length, obsLines.length)
-      const rowH = Math.max(8, neededLines * 3.6 + 4.5)
+      const rowH = Math.max(9, neededLines * 4.4 + 6) // margem de segurança maior (era 8, neededLines*3.6+4.5)
 
       if (y > pageH - 20) { doc.addPage(); y = 14 }
 
       doc.setFillColor(...darkBg)
       doc.rect(14, y, totalW, rowH, 'F')
 
-      doc.setFont('helvetica', 'bold')
+      doc.setFont('Roboto', 'bold')
       doc.setFontSize(8)
       doc.setTextColor(...white)
       doc.text(`NOME: ${r.name.toUpperCase()}`, 17, y + 5.3)
@@ -153,7 +155,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
       doc.setTextColor(...statusColorFor(r.status))
       doc.text(statusLines, 14 + nameW + 4, y + 4.8)
 
-      doc.setFont('helvetica', 'normal')
+      doc.setFont('Roboto', 'normal')
       doc.setFontSize(7)
       doc.setTextColor(...white)
       doc.text(obsLines, 14 + nameW + 46, y + 4.8)
@@ -177,11 +179,11 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
     ['Total de Registros',                                g.total,         [40, 40, 40]],
   ].forEach(([label, val, color]) => {
     if (y > pageH - 20) { doc.addPage(); y = 14 }
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('Roboto', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(40, 40, 40)
     doc.text(label, 14, y + 4)
-    doc.setFont('helvetica', 'bold')
+    doc.setFont('Roboto', 'bold')
     doc.setTextColor(...color)
     doc.text(String(val), pageW - 14, y + 4, { align: 'right' })
     y += 8
@@ -191,7 +193,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
   if (y < pageH - 20) {
     doc.setDrawColor(150, 150, 150)
     doc.line(14, y, 100, y)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('Roboto', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(100, 100, 100)
     doc.text(`RESPONSÁVEL: ${responsible || '__________________________'}`, 14, y + 6)
@@ -208,6 +210,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function generatePDFTemplate2({ data, dateKey, responsible }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const emitDate = formatDatePT(dateKey)
@@ -222,15 +225,15 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
   // Cabeçalho azul escuro
   doc.setFillColor(...navyDark)
   doc.rect(0, 0, pageW, 48, 'F')
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('Roboto', 'bold')
   doc.setFontSize(15)
   doc.setTextColor(...white)
   doc.text('RELATÓRIO DE CONTROLE DE TURNOS', pageW / 2, 13, { align: 'center' })
-  doc.setFont('helvetica', 'italic')
+  doc.setFont('Roboto', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(200, 210, 230)
   doc.text('Relatório Confidencial — Uso Interno', pageW / 2, 21, { align: 'center' })
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('Roboto', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(...white)
   doc.text(`Data de Referência: ${emitDate}`, pageW / 2, 31, { align: 'center' })
@@ -249,7 +252,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
     // Linha de seção desenhada manualmente
     doc.setFillColor(...navyDark)
     doc.rect(14, y, pageW - 28, 8, 'F')
-    doc.setFont('helvetica', 'bold')
+    doc.setFont('Roboto', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...white)
     doc.text(`SAIU OU FURARAM ${shiftLabel}`, 18, y + 5.5)
@@ -269,8 +272,8 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
       head: [['Nº', 'ENTREGADOR', 'Status', 'Turno', 'Observação']],
       body: tableRows,
       margin: { left: 14, right: 14 },
-      styles: { fontSize: 8.5, cellPadding: 3.5, textColor: black },
-      headStyles: { fillColor: navyMid, textColor: white, fontStyle: 'bold', fontSize: 8.5, halign: 'center' },
+      styles: { font: 'Roboto', fontSize: 8.5, cellPadding: 3.5, textColor: black },
+      headStyles: { font: 'Roboto', fillColor: navyMid, textColor: white, fontStyle: 'bold', fontSize: 8.5, halign: 'center' },
       alternateRowStyles: { fillColor: beige },
       columnStyles: {
         0: { cellWidth: 10, halign: 'center' },
@@ -305,8 +308,8 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
       ['Total de Registros',                        g.total],
     ],
     margin: { left: 14, right: 14 },
-    styles: { fontSize: 9, cellPadding: 3.5, textColor: black },
-    headStyles: { fillColor: navyDark, textColor: white, fontStyle: 'bold', fontSize: 9 },
+    styles: { font: 'Roboto', fontSize: 9, cellPadding: 3.5, textColor: black },
+    headStyles: { font: 'Roboto', fillColor: navyDark, textColor: white, fontStyle: 'bold', fontSize: 9 },
     alternateRowStyles: { fillColor: beige },
     columnStyles: {
       0: { fontStyle: 'normal' },
@@ -329,6 +332,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function generatePDFTemplate3({ data, dateKey, responsible }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const emitDate = formatDatePT(dateKey)
@@ -349,11 +353,11 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
   doc.rect(0, 0, pageW, 28, 'F')
   doc.setFillColor(...orange)
   doc.rect(0, 28, pageW, 0.8, 'F')
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('Roboto', 'bold')
   doc.setFontSize(13)
   doc.setTextColor(...white)
   doc.text(`RELATÓRIO DE CONTROLE DE TURNOS  ·  ${emitDate}`, pageW / 2, 12, { align: 'center' })
-  doc.setFont('helvetica', 'italic')
+  doc.setFont('Roboto', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...gray)
   doc.text(
@@ -376,7 +380,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     doc.rect(14, y, pageW - 28, 8, 'F')
     doc.setFillColor(...blue)
     doc.rect(14, y, 2.5, 8, 'F')
-    doc.setFont('helvetica', 'bold')
+    doc.setFont('Roboto', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(...white)
     doc.text(`SAIU OU FURARAM  ·  ${shiftLabel}  ·  ${dia} ${emitDate}`, 20, y + 5.5)
@@ -396,8 +400,8 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
       head: [['#', 'ENTREGADOR', 'TURNO', 'OCORRÊNCIA', 'OBSERVAÇÃO']],
       body: tableRows,
       margin: { left: 14, right: 14 },
-      styles: { fontSize: 8, cellPadding: 3, textColor: white, fillColor: bgMain },
-      headStyles: { fillColor: bgHead, textColor: white, fontStyle: 'bold', fontSize: 8 },
+      styles: { font: 'Roboto', fontSize: 8, cellPadding: 3, textColor: white, fillColor: bgMain },
+      headStyles: { font: 'Roboto', fillColor: bgHead, textColor: white, fontStyle: 'bold', fontSize: 8 },
       alternateRowStyles: { fillColor: bgAlt },
       columnStyles: {
         0: { cellWidth: 9,  halign: 'center', textColor: gray, fontSize: 7 },
@@ -431,8 +435,8 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
       ['Total de Registros',                        g3.total],
     ],
     margin: { left: 14, right: 14 },
-    styles: { fontSize: 8.5, cellPadding: 3.5, textColor: white, fillColor: bgMain },
-    headStyles: { fillColor: bgHead, textColor: white, fontStyle: 'bold', fontSize: 9 },
+    styles: { font: 'Roboto', fontSize: 8.5, cellPadding: 3.5, textColor: white, fillColor: bgMain },
+    headStyles: { font: 'Roboto', fillColor: bgHead, textColor: white, fontStyle: 'bold', fontSize: 9 },
     alternateRowStyles: { fillColor: bgAlt },
     columnStyles: {
       0: { fontStyle: 'normal' },
@@ -449,7 +453,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
   // Legenda
   const legY = doc.lastAutoTable.finalY + 8
   if (legY < pageH - 14) {
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('Roboto', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...gray)
     doc.text(
