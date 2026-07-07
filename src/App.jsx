@@ -41,6 +41,7 @@ const FIXED_FILTER_OPTIONS = [
   { value: 'aviso',               label: 'Ausência Comunicada' },
   { value: 'substituido',         label: 'Substituído' },
   { value: 'bloqueado',           label: 'Bloqueado' },
+  { value: 'tirei',               label: 'Tirei' },
   { value: 'ausencia_em_sistema', label: 'Aus. Comunicada — continua em sistema' },
   { value: 'nao_com_em_sistema',  label: 'Aus. Não Comunicada — continua em sistema' },
 ]
