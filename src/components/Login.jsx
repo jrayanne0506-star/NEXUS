@@ -232,7 +232,7 @@ export default function Login({ onLogin }) {
               flexShrink: 0,
             }}
           >
-            J
+            ᚼ
           </span>
           <div>
             <div style={styles.logo}>NEXUS</div>
