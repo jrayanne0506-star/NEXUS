@@ -459,7 +459,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
   // Resumo — inclui dinamicamente qualquer tag personalizada usada nos dados
   if (y > pageH - 55) { doc.addPage(); y = 14 }
   const g3 = globalCounts(data)
-  const summaryRows3 = [...buildSummaryRows(g3.porStatus, tagsExtras), ['Total de Registros', g3.total, [40, 40, 40]]]
+  const summaryRows3 = [...buildSummaryRows(g3.porStatus, tagsExtras), ['Total de Registros', g3.total, white]]
   autoTable(doc, {
     startY: y,
     head: [['RESUMO GERAL', '']],
