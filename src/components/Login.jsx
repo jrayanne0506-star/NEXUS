@@ -278,7 +278,7 @@ export default function Login({ onLogin }) {
         {error && <div style={styles.error}>⚠ Credenciais inválidas. Tente novamente.</div>}
 
         <div style={styles.hint}>
-          <span style={{ color:'#3f3f46' }}>SCORPIONS © 2026 — </span>
+          <span style={{ color:'#3f3f46' }}> © 2026 — </span>
           <span style={{ color:'#f97316', fontFamily:'IBM Plex Mono, monospace' }}>Dev Jeniffer</span>
         </div>
       </div>
