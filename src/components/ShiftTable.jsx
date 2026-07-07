@@ -1,4 +1,5 @@
 import React, { useRef } from 'react'
+import { carregarTagsExtras, salvarTagsExtras } from '../utils/tagsExtras.js'
 
 const STATUS_FIXOS = [
   { value: '',                     label: '— Selecionar —',                                color: '#909090' },
@@ -10,14 +11,6 @@ const STATUS_FIXOS = [
   { value: 'nao_com_em_sistema',   label: 'Ausência não comunicada — continua em sistema', color: '#fa6060' },
   { value: 'tirei',                label: 'Tirei',                                         color: '#f97316' },
 ]
-
-function carregarTagsExtras() {
-  try { return JSON.parse(localStorage.getItem('nexus_tags_extras') || '[]') } catch { return [] }
-}
-
-function salvarTagsExtras(tags) {
-  localStorage.setItem('nexus_tags_extras', JSON.stringify(tags))
-}
 
 function statusColor(status, tagsExtras = []) {
   const fixo = STATUS_FIXOS.find(s => s.value === status)
