@@ -82,14 +82,17 @@ export default function App() {
     setSavedDates(listSavedDates())
   }, [dateKey])
 
-  function addRow() {
-    setData(prev => {
-      const next = { ...prev, [shift]: [...prev[shift], newRow(dateKey)] }
-      saveData(dateKey, next)
-      setSavedDates(listSavedDates())
-      return next
-    })
-  }
+ function addRow(dadosParciais) {
+  setData(prev => {
+    const next = {
+      ...prev,
+      [shift]: [...prev[shift], { ...newRow(dateKey), ...dadosParciais }],
+    }
+    saveData(dateKey, next)
+    setSavedDates(listSavedDates())
+    return next
+  })
+}
 
   function deleteRow(id) {
     setData(prev => {
@@ -108,6 +111,8 @@ export default function App() {
       return next
     })
   }
+
+
 
   function updateResponsible(val) { persist({ ...data, responsible: val }) }
 

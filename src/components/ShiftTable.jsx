@@ -1,5 +1,6 @@
 import React, { useRef } from 'react'
 import { carregarTagsExtras, salvarTagsExtras } from '../utils/tagsExtras.js'
+import AnexarPrintOCR from './AnexarPrintOCR.jsx'
 
 const STATUS_FIXOS = [
   { value: '',                     label: '— Selecionar —',                                color: '#909090' },
@@ -26,17 +27,33 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   const [novaTagLabel, setNovaTagLabel] = React.useState('')
   const [novaTagCor, setNovaTagCor] = React.useState('#f97316')
   const [qtdAdd, setQtdAdd] = React.useState(1)
+  const [importInfo, setImportInfo] = React.useState(null)
 
   const STATUS_OPTS = [...STATUS_FIXOS, ...tagsExtras]
 
   function handleAdd() {
-  const n = Math.max(1, Number(qtdAdd) || 1)
-  for (let i = 0; i < n; i++) onAdd()
-  setTimeout(() => {
-    const inputs = tbodyRef.current?.querySelectorAll('.name-inp')
-    if (inputs?.length) inputs[inputs.length - 1].focus()
-  }, 100 * n)
-}
+    const n = Math.max(1, Number(qtdAdd) || 1)
+    for (let i = 0; i < n; i++) onAdd()
+    setTimeout(() => {
+      const inputs = tbodyRef.current?.querySelectorAll('.name-inp')
+      if (inputs?.length) inputs[inputs.length - 1].focus()
+    }, 100 * n)
+  }
+
+  // Recebe os registros lidos do print pelo OCR ([{ nome, status, motivo }],
+  // já conferidos na tela de preview) e cria uma linha nova pra cada um,
+  // já preenchida. Status vazio ('') cai como "— Selecionar —" na tabela.
+  function handleImportPrint(registros) {
+    registros.forEach(r => {
+      onAdd({
+        name: (r.nome || '').toUpperCase(),
+        status: r.status || '',
+        obs: r.motivo || '',
+      })
+    })
+    setImportInfo({ total: registros.length })
+    setTimeout(() => setImportInfo(null), 5000)
+  }
 
   function adicionarTag() {
     if (!novaTagLabel.trim()) return
@@ -129,36 +146,45 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
       )}
 
       {/* TOP BAR */}
-     <div style={s.topBar}>
-  <button
-    style={s.tagBtn}
-    onClick={() => setModalTag(true)}
-    onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
-    onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
-  >
-    + NOVA TAG
-  </button>
+      <div style={s.topBar}>
+        <AnexarPrintOCR onImport={handleImportPrint} />
 
-  <div style={s.addGroup}>
-    <input
-      type="number"
-      min={1}
-      max={50}
-      value={qtdAdd}
-      onChange={e => setQtdAdd(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
-      style={s.qtdInput}
-      title="Quantidade de registros"
-    />
-    <button
-      style={s.addBtn}
-      onClick={handleAdd}
-      onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
-      onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
-    >
-      + ADICIONAR {qtdAdd > 1 ? `(${qtdAdd})` : 'REGISTRO'}
-    </button>
-  </div>
-</div>
+        <button
+          style={s.tagBtn}
+          onClick={() => setModalTag(true)}
+          onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
+        >
+          + NOVA TAG
+        </button>
+
+        <div style={s.addGroup}>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={qtdAdd}
+            onChange={e => setQtdAdd(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+            style={s.qtdInput}
+            title="Quantidade de registros"
+          />
+          <button
+            style={s.addBtn}
+            onClick={handleAdd}
+            onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
+            onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
+          >
+            + ADICIONAR {qtdAdd > 1 ? `(${qtdAdd})` : 'REGISTRO'}
+          </button>
+        </div>
+      </div>
+
+      {/* Aviso pós-importação do print */}
+      {importInfo && (
+        <div style={s.importBanner}>
+          ✅ {importInfo.total} registro(s) importado(s) do print.
+        </div>
+      )}
 
       {/* TABELA */}
       <div style={s.tableWrap}>
@@ -192,7 +218,7 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
           <div style={s.empty}>
             <div style={s.emptyIcon}>📋</div>
             Nenhum registro neste turno.<br />
-            Clique em "+ ADICIONAR REGISTRO" para começar.
+            Clique em "+ ADICIONAR REGISTRO" ou anexe um print para começar.
           </div>
         )}
       </div>
@@ -281,7 +307,7 @@ function Row({ row, idx, onDelete, onUpdate, tagsExtras, statusOpts }) {
 }
 
 const s = {
-  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 },
+  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8, flexWrap: 'wrap' },
   addBtn: {
     background: '#f97316', color: '#000', fontFamily: 'Bebas Neue, sans-serif',
     fontSize: 14, letterSpacing: 2, padding: '9px 22px', border: 'none', cursor: 'pointer',
@@ -291,6 +317,11 @@ const s = {
     background: 'transparent', border: '1px solid #27272a', color: '#f97316',
     fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, letterSpacing: 1.5,
     padding: '9px 16px', cursor: 'pointer', transition: 'border-color 0.2s',
+  },
+  importBanner: {
+    background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)',
+    color: '#4ade80', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11,
+    padding: '9px 14px', marginBottom: 12,
   },
   tableWrap: { background: '#111113', border: '1px solid #27272a', overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
