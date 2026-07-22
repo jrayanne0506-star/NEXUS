@@ -117,15 +117,84 @@ function addFooter(doc, pageH, pageW, now) {
     doc.text(
       `NEXUS © ${now.getFullYear()} — Scorpions Delivery — Documento Confidencial — Uso Interno`,
       14, pageH - 4
-    )
+    ) 
     doc.text(`Página ${p} de ${total}`, pageW - 14, pageH - 4, { align: 'right' })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANEXOS / PRINTS — converte cada arquivo em base64 e desenha em páginas
+// extras no final do PDF, em grade de 2 colunas. Sem limite de quantidade;
+// só entra em ação se `prints` vier preenchido do ExportModal.
+// ─────────────────────────────────────────────────────────────────────────────
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+async function addAttachmentsPages(doc, prints, pageW, pageH) {
+  if (!prints || !prints.length) return
+
+  doc.addPage()
+  doc.setFillColor(20, 20, 20)
+  doc.rect(0, 0, pageW, 20, 'F')
+  doc.setFont('Roboto', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(255, 255, 255)
+  doc.text('ANEXOS / PRINTS', pageW / 2, 13, { align: 'center' })
+
+  const margin = 14
+  const gap    = 6
+  const cols   = 2
+  const imgW   = (pageW - margin * 2 - gap * (cols - 1)) / cols
+  const imgH   = imgW * 0.65 // proporção aproximada de print de tela
+
+  let x = margin
+  let y = 28
+  let col = 0
+
+  for (const p of prints) {
+    if (y + imgH > pageH - 14) {
+      doc.addPage()
+      x = margin
+      y = 14
+      col = 0
+    }
+
+    try {
+      const dataUrl = await fileToDataURL(p.file)
+      const format = p.file.type.includes('png') ? 'PNG' : 'JPEG'
+      doc.addImage(dataUrl, format, x, y, imgW, imgH, undefined, 'FAST')
+    } catch (err) {
+      // se um arquivo falhar ao carregar, pula e segue com os demais
+      doc.setDrawColor(120, 120, 120)
+      doc.rect(x, y, imgW, imgH)
+    }
+
+    doc.setFont('Roboto', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(120, 120, 120)
+    doc.text(p.nome || '', x, y + imgH + 4, { maxWidth: imgW })
+
+    col++
+    if (col >= cols) {
+      col = 0
+      x = margin
+      y += imgH + 12
+    } else {
+      x += imgW + gap
+    }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE 1 — Cabeçalho laranja, linhas pretas, STATUS colorido
 // ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate1({ data, dateKey, responsible }) {
+export async function generatePDFTemplate1({ data, dateKey, responsible, prints }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
@@ -243,6 +312,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
     doc.text('Pág. 1', pageW - 14, y + 6, { align: 'right' })
   }
 
+  await addAttachmentsPages(doc, prints, pageW, pageH)
   addFooter(doc, pageH, pageW, now)
   doc.save(`NEXUS_Relatorio_Turnos_${dateKey}.pdf`)
 }
@@ -250,7 +320,7 @@ export function generatePDFTemplate1({ data, dateKey, responsible }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE 2 — Cabeçalho azul escuro, tabelas por turno separadas manualmente
 // ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate2({ data, dateKey, responsible }) {
+export async function generatePDFTemplate2({ data, dateKey, responsible, prints }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
@@ -359,6 +429,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
     },
   })
 
+  await addAttachmentsPages(doc, prints, pageW, pageH)
   addFooter(doc, pageH, pageW, now)
   doc.save(`NEXUS_Modelo2_Turnos_${dateKey}.pdf`)
 }
@@ -366,7 +437,7 @@ export function generatePDFTemplate2({ data, dateKey, responsible }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE 3 — Fundo escuro, seções com borda azul, tabelas por turno separadas
 // ─────────────────────────────────────────────────────────────────────────────
-export function generatePDFTemplate3({ data, dateKey, responsible }) {
+export async function generatePDFTemplate3({ data, dateKey, responsible, prints }) {
   const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   registerFonts(doc)
   const pageW = doc.internal.pageSize.getWidth()
@@ -492,6 +563,7 @@ export function generatePDFTemplate3({ data, dateKey, responsible }) {
     )
   }
 
+  await addAttachmentsPages(doc, prints, pageW, pageH)
   addFooter(doc, pageH, pageW, now)
   doc.save(`NEXUS_Modelo3_Turnos_${dateKey}.pdf`)
 }
