@@ -4,13 +4,12 @@ import AnexarPrintOCR from './AnexarPrintOCR.jsx'
 
 const STATUS_FIXOS = [
   { value: '',                     label: '— Selecionar —',                                color: '#909090' },
-  { value: 'ausencia',             label: 'Ausência Não Comunicada',                       color: '#ef4444' },
-  { value: 'aviso',                label: 'Ausência Comunicada',                           color: '#eab308' },
   { value: 'substituido',          label: 'Substituído',                                   color: '#a78bfa' },
   { value: 'bloqueado',            label: 'Bloqueado',                                     color: '#f97316' },
   { value: 'ausencia_em_sistema',  label: 'Ausência comunicada — continua em sistema',     color: '#c6c005' },
   { value: 'nao_com_em_sistema',   label: 'Ausência não comunicada — continua em sistema', color: '#fa6060' },
-  { value: 'tirei',                label: 'Tirei',                                         color: '#f97316' },
+  { value: 'tirei',                label: 'Tirei',                                         color: '#22c55e' },
+  { value: 'inconfiavel',          label: 'Inconfiável',                                   color: '#ec4899' },
 ]
 
 function statusColor(status, tagsExtras = []) {
