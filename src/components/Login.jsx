@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-
-const USERS = { admin: 'admin123', gestor: 'nexus2024', supervisor: '1234' }
+import { supabase } from '../utils/supabaseClient.js'
 
 function rnd(a, b) { return a + Math.random() * (b - a) }
 const VENOM = ['#a8e63d','#78c800','#b4f000','#d4ff4d','#e8ff80','#5cb800','#c6f000']
@@ -10,7 +9,8 @@ function vc() { return VENOM[Math.floor(Math.random() * VENOM.length)] }
 export default function Login({ onLogin }) {
   const [user, setUser]     = useState('')
   const [pass, setPass]     = useState('')
-  const [error, setError]   = useState(false)
+  const [error, setError]   = useState('')
+  const [loading, setLoading] = useState(false)
   const [shaking, setShake] = useState(false)
   const [flash, setFlash]   = useState(false)
   const [drops, setDrops]   = useState([])
@@ -116,20 +116,64 @@ export default function Login({ onLogin }) {
     setTimeout(() => setShake(false), 500)
     setTimeout(() => setFlash(false), 380)
 
-    /* posição relativa à janela toda */
     const cx = e.clientX
     const cy = e.clientY
 
     burst(cx, cy, clickCount.current % 5 === 0)
   }
 
-  function handle() {
-    if (USERS[user] && USERS[user] === pass) {
-      onLogin(user)
-    } else {
-      setError(true)
-      setTimeout(() => setError(false), 3000)
+  // Aceita tanto "operacional1" quanto "operacional1@nexus.com" — se não
+  // tiver @, completa com o domínio padrão usado na criação dos usuários.
+  function toEmail(valor) {
+    const v = valor.trim()
+    if (!v) return v
+    return v.includes('@') ? v : `${v}@nexus.com`
+  }
+
+  async function handle() {
+    if (!user.trim() || !pass) {
+      setError('Preencha usuário e senha.')
+      setTimeout(() => setError(''), 3000)
+      return
     }
+
+    setLoading(true)
+    setError('')
+
+    const email = toEmail(user)
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: pass,
+    })
+
+    if (authError || !authData?.user) {
+      setLoading(false)
+      setError('⚠ Credenciais inválidas. Tente novamente.')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+
+    // Busca o perfil (nome + papel) do usuário autenticado
+    const { data: perfil, error: perfilError } = await supabase
+      .from('profiles')
+      .select('id, nome, role')
+      .eq('id', authData.user.id)
+      .single()
+
+    setLoading(false)
+
+    if (perfilError || !perfil) {
+      setError('⚠ Login ok, mas perfil não encontrado. Fale com o admin.')
+      setTimeout(() => setError(''), 4000)
+      return
+    }
+
+    onLogin({
+      id: perfil.id,
+      email: authData.user.email,
+      nome: perfil.nome,
+      role: perfil.role,
+    })
   }
 
   return (
@@ -165,24 +209,20 @@ export default function Login({ onLogin }) {
         input:focus { border-color:#f97316 !important; }
       `}</style>
 
-      {/* grade */}
       <div style={styles.grid}/>
       <div style={styles.glow1}/>
       <div style={styles.glow2}/>
 
-      {/* canvas cobre a tela inteira — manchas ficam aqui */}
       <canvas ref={canvasRef} style={{
         position:'fixed', inset:0, pointerEvents:'none', zIndex:0,
       }}/>
 
-      {/* flash de tela */}
       {flash && <div style={{
         position:'fixed', inset:0, background:'rgba(164,230,40,0.07)',
         pointerEvents:'none', zIndex:1,
         animation:'flashFade 0.38s ease forwards',
       }}/>}
 
-      {/* partículas — fixed para voar pela tela toda */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:50, overflow:'hidden' }}>
         {drops.map(p => {
           if (p.type === 'drip') return (
@@ -213,11 +253,9 @@ export default function Login({ onLogin }) {
         })}
       </div>
 
-      {/* card de login */}
       <div style={styles.card}>
 
         <div style={styles.logoRow}>
-          {/* escorpião inline — sem container quadrado */}
           <span
             onClick={handleScorpClick}
             title="clique em mim!"
@@ -248,9 +286,10 @@ export default function Login({ onLogin }) {
             style={styles.input}
             value={user}
             onChange={e => setUser(e.target.value)}
-            placeholder="seu.usuario"
+            placeholder="operacional1"
             autoComplete="off"
             onKeyDown={e => e.key === 'Enter' && handle()}
+            disabled={loading}
           />
         </div>
 
@@ -263,19 +302,21 @@ export default function Login({ onLogin }) {
             onChange={e => setPass(e.target.value)}
             placeholder="••••••••"
             onKeyDown={e => e.key === 'Enter' && handle()}
+            disabled={loading}
           />
         </div>
 
         <button
-          style={styles.btn}
+          style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}
           onClick={handle}
-          onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
+          disabled={loading}
+          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#fb923c' }}
           onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
         >
-          ACESSAR NEXUS
+          {loading ? 'VERIFICANDO…' : 'ACESSAR NEXUS'}
         </button>
 
-        {error && <div style={styles.error}>⚠ Credenciais inválidas. Tente novamente.</div>}
+        {error && <div style={styles.error}>{error}</div>}
 
         <div style={styles.hint}>
           <span style={{ color:'#3f3f46' }}> © 2026 — </span>

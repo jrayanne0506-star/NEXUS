@@ -2,9 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react'
 import Login from './components/Login.jsx'
 import ShiftTable from './components/ShiftTable.jsx'
 import ExportModal from './components/ExportModal.jsx'
+import { supabase } from './utils/supabaseClient.js'
 import {
-  loadData, saveData, todayKey, formatDatePT, listSavedDates,
-  defaultData, newRow, SHIFT_LABELS, SHIFTS,
+  loadData, todayKey, formatDatePT, listSavedDates,
+  defaultData, SHIFT_LABELS, SHIFTS,
+  addRow as addRowDb, updateRow as updateRowDb, deleteRow as deleteRowDb,
+  saveResponsible,
 } from './utils/storage.js'
 import { generatePDF } from './utils/pdfExport.js'
 import {
@@ -20,11 +23,15 @@ const PAGE_LABELS = {
   ausencias: 'CONTROLE DE AUSÊNCIAS',
 }
 
+const ROLE_LABELS = {
+  operacional: 'Operacional',
+  gerente: 'Gerente',
+  gestor: 'Gestor',
+}
+
 // Status fixos do sistema — derivados de statusConfig.js (fonte única de
 // verdade, a mesma usada pelo dropdown do ShiftTable e pelos PDFs). Tags
-// personalizadas ("+ NOVA TAG") são mescladas dinamicamente em tempo de
-// renderização a partir de carregarTagsExtras(), então não precisam ser
-// listadas aqui manualmente.
+// personalizadas são mescladas dinamicamente a partir de carregarTagsExtras().
 const FIXED_STATS = STATUS_CONFIG.map(s => ({
   key: s.value,
   label: s.cardLabel,
@@ -38,6 +45,7 @@ const FIXED_FILTER_OPTIONS = STATUS_CONFIG.map(s => ({
 
 export default function App() {
   const [user, setUser]             = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [page, setPage]             = useState('ausencias')
   const [dateKey, setDateKey]       = useState(todayKey())
   const [data, setData]             = useState(defaultData())
@@ -47,64 +55,92 @@ export default function App() {
   const [savedDates, setSavedDates] = useState([])
   const [pdfLoading, setPdfLoading] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [tagsExtras, setTagsExtras] = useState([])
+  const [dataLoading, setDataLoading] = useState(false)
 
+  // ── Restaura sessão já logada (recarregar página não pede login de novo) ──
+  useEffect(() => {
+    let cancelled = false
+
+    async function restoreSession() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        if (!cancelled) setAuthChecked(true)
+        return
+      }
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('id, nome, role')
+        .eq('id', session.user.id)
+        .single()
+
+      if (!cancelled) {
+        if (perfil) {
+          setUser({ id: perfil.id, email: session.user.email, nome: perfil.nome, role: perfil.role })
+        }
+        setAuthChecked(true)
+      }
+    }
+
+    restoreSession()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── Carrega registros e datas salvas sempre que a data ou o usuário mudam ──
   useEffect(() => {
     if (!user) return
-    const d = loadData(dateKey)
-    setData(d)
-    setSavedDates(listSavedDates())
+    let cancelled = false
+
+    setDataLoading(true)
+    loadData(dateKey).then(d => { if (!cancelled) { setData(d); setDataLoading(false) } })
+    listSavedDates().then(dates => { if (!cancelled) setSavedDates(dates) })
+
+    return () => { cancelled = true }
   }, [dateKey, user])
 
-  const persist = useCallback((next) => {
-    setData(next)
-    saveData(dateKey, next)
-    setSavedDates(listSavedDates())
-  }, [dateKey])
+  // ── Carrega tags extras (uma vez, ao logar) ──
+  useEffect(() => {
+    if (!user) return
+    carregarTagsExtras().then(setTagsExtras)
+  }, [user])
 
- function addRow(dadosParciais) {
-  setData(prev => {
-    const next = {
+  const refreshSavedDates = useCallback(() => {
+    listSavedDates().then(setSavedDates)
+  }, [])
+
+  async function addRow(dadosParciais) {
+    const novaLinha = await addRowDb(dateKey, shift, dadosParciais)
+    if (!novaLinha) return
+    setData(prev => ({ ...prev, [shift]: [...prev[shift], novaLinha] }))
+    refreshSavedDates()
+  }
+
+  async function deleteRow(id) {
+    setData(prev => ({ ...prev, [shift]: prev[shift].filter(r => r.id !== id) }))
+    await deleteRowDb(id)
+  }
+
+  async function updateRow(id, f, v) {
+    setData(prev => ({
       ...prev,
-      [shift]: [...prev[shift], { ...newRow(dateKey), ...dadosParciais }],
-    }
-    saveData(dateKey, next)
-    setSavedDates(listSavedDates())
-    return next
-  })
-}
-
-  function deleteRow(id) {
-    setData(prev => {
-      const next = { ...prev, [shift]: prev[shift].filter(r => r.id !== id) }
-      saveData(dateKey, next)
-      setSavedDates(listSavedDates())
-      return next
-    })
+      [shift]: prev[shift].map(r => r.id === id ? { ...r, [f]: v } : r),
+    }))
+    await updateRowDb(id, f, v)
   }
 
-  function updateRow(id, f, v) {
-    setData(prev => {
-      const next = { ...prev, [shift]: prev[shift].map(r => r.id === id ? { ...r, [f]: v } : r) }
-      saveData(dateKey, next)
-      setSavedDates(listSavedDates())
-      return next
-    })
+  async function updateResponsible(val) {
+    setData(prev => ({ ...prev, responsible: val }))
+    await saveResponsible(dateKey, val)
   }
 
-
-
-  function updateResponsible(val) { persist({ ...data, responsible: val }) }
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
 
   const allRows = SHIFTS.flatMap(s => data[s] || [])
 
-  // Tags personalizadas ("+ NOVA TAG") — lidas do localStorage a cada render,
-  // assim qualquer tag criada no ShiftTable já aparece aqui na próxima vez
-  // que um status for atribuído a uma linha (o que dispara um re-render via
-  // updateRow/persist).
-  const tagsExtras = carregarTagsExtras()
-
-  // ── Stats — dinâmico: conta QUALQUER status presente nos dados, não só ──
-  // os fixos. Isso garante que tags personalizadas apareçam nos cards.
+  // ── Stats — dinâmico: conta QUALQUER status presente nos dados ──
   const validRows = allRows.filter(r => r.name?.trim())
   const statTotal = validRows.length
   const statPorStatus = {}
@@ -144,7 +180,7 @@ export default function App() {
   async function handleExport(templateId) {
     setPdfLoading(true)
     setExportOpen(false)
-    const args = { data, dateKey, responsible: data.responsible, user }
+    const args = { data, dateKey, responsible: data.responsible, user: user?.nome || user?.email }
     try {
       if (templateId === 'original')   generatePDF(args)
       if (templateId === 'template1')  generatePDFTemplate1(args)
@@ -155,7 +191,11 @@ export default function App() {
     }
   }
 
-  if (!user) return <Login onLogin={u => { setUser(u); setDateKey(todayKey()) }} />
+  if (!authChecked) return null // evita "piscar" a tela de login antes de checar sessão
+
+  if (!user) {
+    return <Login onLogin={u => { setUser(u); setDateKey(todayKey()) }} />
+  }
 
   return (
     <div style={s.app}>
@@ -179,9 +219,9 @@ export default function App() {
         </div>
         <div style={s.hRight}>
           <span style={s.userBadge}>
-            Operador: <span style={{ color: '#f97316' }}>{user.charAt(0).toUpperCase() + user.slice(1)}</span>
+            {ROLE_LABELS[user.role] || 'Operador'}: <span style={{ color: '#f97316' }}>{user.nome || user.email}</span>
           </span>
-          <button style={s.logoutBtn} onClick={() => setUser(null)}
+          <button style={s.logoutBtn} onClick={handleLogout}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#f97316' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#27272a'; e.currentTarget.style.color = '#909090' }}
           >SAIR</button>
@@ -209,11 +249,13 @@ export default function App() {
                 </div>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end' }}>
-                <span style={s.savedBadge}>💾 {savedDates.length} {savedDates.length === 1 ? 'data salva' : 'datas salvas'}</span>
+                <span style={s.savedBadge}>
+                  {dataLoading ? '⏳ carregando…' : `💾 ${savedDates.length} ${savedDates.length === 1 ? 'data salva' : 'datas salvas'}`}
+                </span>
               </div>
             </div>
 
-            {/* ── Stats — inclui dinamicamente qualquer tag personalizada ── */}
+            {/* ── Stats ── */}
             <div style={s.statsRow}>
               {statCards.map(st => (
                 <div key={st.label} style={{ ...s.statCard, borderLeftColor: st.accent }}>
@@ -237,7 +279,7 @@ export default function App() {
               })}
             </div>
 
-            {/* ── Filtros — inclui dinamicamente qualquer tag personalizada ── */}
+            {/* ── Filtros ── */}
             <div style={s.filtersRow}>
               <span style={s.filterLabel}>Filtros:</span>
               <input style={s.filterInp} placeholder="Filtrar por colaborador…"

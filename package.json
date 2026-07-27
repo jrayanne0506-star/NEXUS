@@ -10,6 +10,7 @@
     "deploy": "git add . && git commit -m 'deploy automático' && git push"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.9",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "react": "^18.3.1",
