@@ -12,9 +12,6 @@ function statusColor(status, tagsExtras = []) {
 export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
   const tbodyRef = useRef()
   const [tagsExtras, setTagsExtras] = React.useState(carregarTagsExtras)
-  const [modalTag, setModalTag] = React.useState(false)
-  const [novaTagLabel, setNovaTagLabel] = React.useState('')
-  const [novaTagCor, setNovaTagCor] = React.useState('#f97316')
   const [qtdAdd, setQtdAdd] = React.useState(1)
   const [importInfo, setImportInfo] = React.useState(null)
 
@@ -44,108 +41,13 @@ export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
     setTimeout(() => setImportInfo(null), 5000)
   }
 
-  function adicionarTag() {
-    if (!novaTagLabel.trim()) return
-    const nova = {
-      value: `custom_${Date.now()}`,
-      label: novaTagLabel.trim(),
-      color: novaTagCor,
-    }
-    const novas = [...tagsExtras, nova]
-    setTagsExtras(novas)
-    salvarTagsExtras(novas)
-    setNovaTagLabel('')
-    setNovaTagCor('#f97316')
-    setModalTag(false)
-  }
-
-  function removerTagExtra(value) {
-    const novas = tagsExtras.filter(t => t.value !== value)
-    setTagsExtras(novas)
-    salvarTagsExtras(novas)
-  }
-
   return (
     <div>
-      {/* MODAL NOVA TAG */}
-      {modalTag && (
-        <div style={s.modalOverlay} onClick={() => setModalTag(false)}>
-          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
-            <div style={s.modalTitle}>NOVA TAG</div>
-
-            <div style={s.modalField}>
-              <label style={s.modalLabel}>Nome da tag</label>
-              <input
-                autoFocus
-                style={s.modalInput}
-                value={novaTagLabel}
-                onChange={e => setNovaTagLabel(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && adicionarTag()}
-                placeholder="Ex: Atestado, Férias..."
-              />
-            </div>
-
-            <div style={s.modalField}>
-              <label style={s.modalLabel}>Cor</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input
-                  type="color"
-                  value={novaTagCor}
-                  onChange={e => setNovaTagCor(e.target.value)}
-                  style={s.colorPicker}
-                />
-                <span style={{ fontFamily: 'IBM Plex Mono', fontSize: 12, color: novaTagCor }}>
-                  {novaTagCor}
-                </span>
-                <div style={{
-                  padding: '3px 10px', border: `1px solid ${novaTagCor}`,
-                  color: novaTagCor, fontFamily: 'IBM Plex Mono, monospace', fontSize: 11,
-                }}>
-                  {novaTagLabel || 'Prévia'}
-                </div>
-              </div>
-            </div>
-
-            {tagsExtras.length > 0 && (
-              <div style={s.modalField}>
-                <label style={s.modalLabel}>Tags criadas</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {tagsExtras.map(t => (
-                    <div key={t.value} style={{ ...s.tagPill, borderColor: t.color, color: t.color }}>
-                      {t.label}
-                      <button onClick={() => removerTagExtra(t.value)} style={s.tagRemove}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button style={s.modalCancel} onClick={() => setModalTag(false)}>Cancelar</button>
-              <button
-                style={{ ...s.modalConfirm, opacity: !novaTagLabel.trim() ? 0.4 : 1 }}
-                onClick={adicionarTag}
-                disabled={!novaTagLabel.trim()}
-              >
-                Adicionar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* TOP BAR */}
       <div style={s.topBar}>
         <AnexarPrintOCR onImport={handleImportPrint} />
 
-        <button
-          style={s.tagBtn}
-          onClick={() => setModalTag(true)}
-          onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}
-        >
-          + NOVA TAG
-        </button>
+        
 
         <div style={s.addGroup}>
           <input
