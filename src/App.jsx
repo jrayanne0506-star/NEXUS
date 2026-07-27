@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Login from './components/Login.jsx'
 import ShiftTable from './components/ShiftTable.jsx'
-import EntregadoresEstáveis from './components/EntregadoresEstáveis.jsx'
-import ConfirmacaoTurnos, { estavelNaConfirmacao } from './components/ConfirmacaoTurnos.jsx'
 import ExportModal from './components/ExportModal.jsx'
 import {
   loadData, saveData, todayKey, formatDatePT, listSavedDates,
@@ -16,11 +14,9 @@ import {
 } from './utils/generatePDFTemplates.js'
 import { carregarTagsExtras } from './utils/tagsExtras.js'
 
-const PAGES = ['ausencias', 'entregadores', 'confirmacao']
+const PAGES = ['ausencias']
 const PAGE_LABELS = {
-  ausencias:   'CONTROLE DE AUSÊNCIAS',
-  entregadores:'ESTÁVEIS DO DIA',
-  confirmacao: 'CONFIRMAÇÃO POR TURNO',
+  ausencias: 'CONTROLE DE AUSÊNCIAS',
 }
 
 // Status fixos do sistema — usados como base dos cards de totais e do filtro.
@@ -57,17 +53,6 @@ export default function App() {
   const [savedDates, setSavedDates] = useState([])
   const [pdfLoading, setPdfLoading] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
-
-  // Estado compartilhado entre Estáveis e Confirmação
-  const [entregadoresEstaveis, setEntregadoresEstaveis] = useState([])
-  const [turnosData, setTurnosData] = useState({})
-
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem("nexus_ct_turnos")
-      if (v) setTurnosData(JSON.parse(v))
-    } catch {}
-  }, [page])
 
   useEffect(() => {
     if (!user) return
@@ -208,21 +193,6 @@ export default function App() {
           >SAIR</button>
         </div>
       </header>
-
-      {page === 'entregadores' && (
-        <div style={{ flex: 1 }}>
-          <EntregadoresEstáveis
-            onEntregadoresChange={setEntregadoresEstaveis}
-            turnosData={turnosData}
-          />
-        </div>
-      )}
-
-      {page === 'confirmacao' && (
-        <div style={{ flex: 1 }}>
-          <ConfirmacaoTurnos entregadoresEstaveis={entregadoresEstaveis} />
-        </div>
-      )}
 
       {page === 'ausencias' && (
         <>
