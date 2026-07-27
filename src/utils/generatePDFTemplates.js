@@ -3,51 +3,28 @@ import autoTable from 'jspdf-autotable'
 import { SHIFT_LABELS, SHIFTS, formatDatePT } from './storage'
 import { registerFonts } from './registerFonts'
 import { carregarTagsExtras, hexToRgb } from './tagsExtras'
+import { STATUS_CONFIG, statusLabelFor, statusColorRgb } from './statusConfig'
 
-// status → label, para os status FIXOS do sistema (tags extras são
-// resolvidas dinamicamente via tagsExtras — ver statusLabel abaixo)
-const FIXED_LABELS = {
-  ausencia:            'Ausência Não Comunicada',
-  aviso:               'Ausência Comunicada',
-  bloqueado:           'Bloqueado',
-  tirei:               'Tiramos',
-  ausencia_em_sistema: 'Aus. Comunicada — em sistema',
-  nao_com_em_sistema:  'Aus. Não Comunicada — em sistema',
-}
+// ── Helpers de status ─────────────────────────────────────────────────────────
+// Tudo derivado de STATUS_CONFIG (statusConfig.js) — mesma fonte usada pelo
+// dropdown (ShiftTable.jsx) e pelo pdfExport.js. Não redefinir labels/cores
+// aqui de novo.
 
 function statusLabel(status, substitutoPor, tagsExtras) {
   if (status === 'substituido') {
     return substitutoPor ? `Substituído por: ${substitutoPor}` : 'Substituído'
   }
-  if (FIXED_LABELS[status]) return FIXED_LABELS[status]
-
-  // Tag personalizada criada pelo usuário (+ NOVA TAG) — busca o label salvo
+  // Tag personalizada criada pelo usuário (+ NOVA TAG)
   const extra = tagsExtras?.find(t => t.value === status)
   if (extra) return extra.label
 
-  return status ? status.toUpperCase() : '—'
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PALETA DE CORES — status fixos mantêm a cor histórica do PDF; status
-// personalizados (tags extras) usam a cor escolhida pelo usuário no modal
-// "+ NOVA TAG", convertida de hex para RGB.
-// ─────────────────────────────────────────────────────────────────────────────
-const STATUS_COLORS = {
-  aviso:               [234, 179, 8  ], // amarelo  — Ausência comunicada
-  ausencia:            [239, 68,  68 ], // vermelho — Ausência não comunicada
-  substituido:         [167, 139, 250], // roxo     — Substituído
-  bloqueado:           [249, 115, 22 ], // laranja  — Bloqueado
-  ausencia_em_sistema: [234, 179, 8  ], // amarelo  — Ausência comunicada (em sistema)
-  nao_com_em_sistema:  [239, 68,  68 ], // vermelho — Ausência não comunicada (em sistema)
-  tirei:               [180, 180, 180], // cinza    — Tiramos (residual)
+  return statusLabelFor(status) || (status ? status.toUpperCase() : '—')
 }
 
 function statusColorFor(status, tagsExtras) {
-  if (STATUS_COLORS[status]) return STATUS_COLORS[status]
   const extra = tagsExtras?.find(t => t.value === status)
   if (extra) return hexToRgb(extra.color)
-  return [180, 180, 180]
+  return statusColorRgb(status)
 }
 
 function diaSemana(dateKey) {
@@ -57,7 +34,7 @@ function diaSemana(dateKey) {
 }
 
 // Conta TODOS os status encontrados nos dados — fixos ou personalizados —
-// não apenas os 6-7 fixos hardcoded. Isso garante que qualquer tag criada
+// não apenas os fixos hardcoded. Isso garante que qualquer tag criada
 // pelo usuário via "+ NOVA TAG" seja contabilizada no resumo do PDF.
 function globalCounts(data) {
   const porStatus = {} // status → quantidade
@@ -74,33 +51,23 @@ function globalCounts(data) {
 }
 
 // Monta as linhas do bloco "Resumo Geral": primeiro os status fixos na ordem
-// histórica do PDF, depois — dinamicamente — qualquer tag personalizada que
-// tenha aparecido nos dados, na cor definida pelo usuário para essa tag.
+// de STATUS_CONFIG (igual ao dropdown e ao pdfExport.js), depois —
+// dinamicamente — qualquer tag personalizada que tenha aparecido nos dados,
+// na cor definida pelo usuário para essa tag.
 function buildSummaryRows(porStatus, tagsExtras) {
-  const ORDEM_FIXA = [
-    ['aviso',               'Total — Ausência Comunicada'],
-    ['ausencia',             'Total — Ausência Não Comunicada'],
-    ['substituido',          'Total — SUBSTITUÍDOS'],
-    ['bloqueado',            'Total — BLOQUEADOS'],
-    ['ausencia_em_sistema',  'Total — AUS. COMUNICADA (EM SISTEMA)'],
-    ['nao_com_em_sistema',   'Total — AUS. NÃO COMUNICADA (EM SISTEMA)'],
-  ]
-
-  const rows = ORDEM_FIXA.map(([status, label]) => [
-    label,
-    porStatus[status] || 0,
-    STATUS_COLORS[status],
+  const rows = STATUS_CONFIG.map(s => [
+    `Total — ${s.cardLabel}`,
+    porStatus[s.value] || 0,
+    statusColorRgb(s.value),
   ])
 
-  // Status extras/personalizados presentes nos dados (inclui 'tirei' e
-  // qualquer tag criada via "+ NOVA TAG")
-  const statusConhecidos = new Set(ORDEM_FIXA.map(([status]) => status))
+  const statusConhecidos = new Set(STATUS_CONFIG.map(s => s.value))
   Object.keys(porStatus)
     .filter(status => !statusConhecidos.has(status))
     .forEach(status => {
       const extra = tagsExtras.find(t => t.value === status)
-      const label = extra ? extra.label : (status === 'tirei' ? 'Tiramos' : status.toUpperCase())
-      const color = extra ? hexToRgb(extra.color) : (STATUS_COLORS[status] || [140, 140, 150])
+      const label = extra ? extra.label : status.toUpperCase()
+      const color = extra ? hexToRgb(extra.color) : [140, 140, 150]
       rows.push([`Total — ${label.toUpperCase()}`, porStatus[status], color])
     })
 

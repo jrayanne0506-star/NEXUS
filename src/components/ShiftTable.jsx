@@ -1,22 +1,12 @@
 import React, { useRef } from 'react'
 import { carregarTagsExtras, salvarTagsExtras } from '../utils/tagsExtras.js'
+import { STATUS_FIXOS, statusColorHex } from '../utils/statusConfig.js'
 import AnexarPrintOCR from './AnexarPrintOCR.jsx'
 
-const STATUS_FIXOS = [
-  { value: '',                     label: '— Selecionar —',                                color: '#909090' },
-  { value: 'substituido',          label: 'Substituído',                                   color: '#a78bfa' },
-  { value: 'bloqueado',            label: 'Bloqueado',                                     color: '#f97316' },
-  { value: 'ausencia_em_sistema',  label: 'Ausência comunicada — continua em sistema',     color: '#c6c005' },
-  { value: 'nao_com_em_sistema',   label: 'Ausência não comunicada — continua em sistema', color: '#fa6060' },
-  { value: 'tirei',                label: 'Tirei',                                         color: '#22c55e' },
-  { value: 'inconfiavel',          label: 'Inconfiável',                                   color: '#ec4899' },
-]
-
 function statusColor(status, tagsExtras = []) {
-  const fixo = STATUS_FIXOS.find(s => s.value === status)
-  if (fixo) return fixo.color
   const extra = tagsExtras.find(t => t.value === status)
-  return extra ? extra.color : '#909090'
+  if (extra) return extra.color
+  return statusColorHex(status)
 }
 
 export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {

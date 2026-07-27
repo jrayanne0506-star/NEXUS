@@ -11,36 +11,30 @@ import {
   generatePDFTemplate1,
   generatePDFTemplate2,
   generatePDFTemplate3,
-} from './utils/generatePDFTemplates.js'
+} from './utils/generatePDFTemplate.js'
 import { carregarTagsExtras } from './utils/tagsExtras.js'
+import { STATUS_CONFIG } from './utils/statusConfig.js'
 
 const PAGES = ['ausencias']
 const PAGE_LABELS = {
   ausencias: 'CONTROLE DE AUSÊNCIAS',
 }
 
-// Status fixos do sistema — usados como base dos cards de totais e do filtro.
-// Tags personalizadas ("+ NOVA TAG") são mescladas dinamicamente em tempo de
+// Status fixos do sistema — derivados de statusConfig.js (fonte única de
+// verdade, a mesma usada pelo dropdown do ShiftTable e pelos PDFs). Tags
+// personalizadas ("+ NOVA TAG") são mescladas dinamicamente em tempo de
 // renderização a partir de carregarTagsExtras(), então não precisam ser
 // listadas aqui manualmente.
-const FIXED_STATS = [
-  { key: 'ausencia',             label: 'Ausências Não Comunicadas',        accent: '#ef4444' },
-  { key: 'aviso',                label: 'Ausências Comunicadas',            accent: '#eab308' },
-  { key: 'substituido',          label: 'Substituídos',                     accent: '#a78bfa' },
-  { key: 'bloqueado',            label: 'Bloqueados',                       accent: '#f97316' },
-  { key: 'ausencia_em_sistema',  label: 'Aus. Comunicada — em sistema',     accent: '#22c55e' },
-  { key: 'nao_com_em_sistema',   label: 'Aus. Não Comunicada — em sistema', accent: '#60a5fa' },
-]
+const FIXED_STATS = STATUS_CONFIG.map(s => ({
+  key: s.value,
+  label: s.cardLabel,
+  accent: s.color,
+}))
 
-const FIXED_FILTER_OPTIONS = [
-  { value: 'ausencia',            label: 'Ausência Não Comunicada' },
-  { value: 'aviso',               label: 'Ausência Comunicada' },
-  { value: 'substituido',         label: 'Substituído' },
-  { value: 'bloqueado',           label: 'Bloqueado' },
-  { value: 'tirei',               label: 'Tirei' },
-  { value: 'ausencia_em_sistema', label: 'Aus. Comunicada — continua em sistema' },
-  { value: 'nao_com_em_sistema',  label: 'Aus. Não Comunicada — continua em sistema' },
-]
+const FIXED_FILTER_OPTIONS = STATUS_CONFIG.map(s => ({
+  value: s.value,
+  label: s.label,
+}))
 
 export default function App() {
   const [user, setUser]             = useState(null)
@@ -110,7 +104,7 @@ export default function App() {
   const tagsExtras = carregarTagsExtras()
 
   // ── Stats — dinâmico: conta QUALQUER status presente nos dados, não só ──
-  // os 6 fixos. Isso garante que tags personalizadas apareçam nos cards.
+  // os fixos. Isso garante que tags personalizadas apareçam nos cards.
   const validRows = allRows.filter(r => r.name?.trim())
   const statTotal = validRows.length
   const statPorStatus = {}

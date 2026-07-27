@@ -3,51 +3,32 @@ import autoTable from 'jspdf-autotable'
 import { SHIFT_LABELS, SHIFTS, formatDatePT } from './storage'
 import { carregarTagsExtras, hexToRgb } from './tagsExtras'
 import { registerFonts } from './registerFonts'
+import { STATUS_CONFIG, statusLabelFor, statusColorRgb } from './statusConfig'
 
 // ── Helpers de status ─────────────────────────────────────────────────────────
-
-// status → label, para os status FIXOS do sistema (tags extras são
-// resolvidas dinamicamente via tagsExtras — mesmo padrão do pdfTemplates.js)
-const FIXED_LABELS = {
-  ausencia:            'Ausência Não Comunicada',
-  aviso:               'Ausência Comunicada',
-  bloqueado:           'Bloqueado',
-  ausencia_em_sistema: 'Aus. Comunicada — em sistema',
-  nao_com_em_sistema:  'Aus. Não Comunicada — em sistema',
-}
+// Tudo derivado de STATUS_CONFIG (statusConfig.js) — mesma fonte usada pelo
+// dropdown (ShiftTable.jsx) e pelos outros templates de PDF. Não redefinir
+// labels/cores aqui de novo.
 
 function statusLabel(status, substitutoPor, tagsExtras) {
   if (status === 'substituido') {
     return substitutoPor ? `Substituído por: ${substitutoPor}` : 'Substituído'
   }
-  if (FIXED_LABELS[status]) return FIXED_LABELS[status]
-
   // Tag personalizada criada pelo usuário (+ NOVA TAG)
   const extra = tagsExtras?.find(t => t.value === status)
   if (extra) return extra.label
 
-  return status ? status.toUpperCase() : '—'
-}
-
-// Retorna cor RGB para cada status (usada no didParseCell)
-const FIXED_COLORS = {
-  ausencia:            [180, 30,  30 ],  // vermelho
-  aviso:               [130, 100, 0  ],  // amarelo escuro
-  substituido:         [100, 60,  180],  // roxo
-  bloqueado:           [200, 80,  10 ],  // laranja escuro
-  ausencia_em_sistema: [30,  130, 80 ],  // verde
-  nao_com_em_sistema:  [30,  90,  180],  // azul
+  return statusLabelFor(status) || (status ? status.toUpperCase() : '—')
 }
 
 function statusColor(status, tagsExtras) {
-  if (FIXED_COLORS[status]) return FIXED_COLORS[status]
   const extra = tagsExtras?.find(t => t.value === status)
   if (extra) return hexToRgb(extra.color)
-  return [100, 100, 110]
+  return statusColorRgb(status)
 }
 
 // Conta TODOS os status encontrados — fixos ou personalizados — não apenas
-// os 6 fixos hardcoded. Retorna também os totais nomeados (para não quebrar
+// os fixos hardcoded. Retorna também os totais nomeados (para não quebrar
 // nada que já dependa deles) e um mapa genérico `porStatus`.
 function contarTudo(data) {
   const porStatus = {}
@@ -63,17 +44,17 @@ function contarTudo(data) {
   return { total, porStatus }
 }
 
-// Monta a lista de cards de totais: primeiro os fixos na ordem histórica,
-// depois — dinamicamente — qualquer tag personalizada usada nos dados.
+// Monta a lista de cards de totais: primeiro TOTAL DE REGISTROS, depois todos
+// os status fixos (na ordem de STATUS_CONFIG — igual ao dropdown), e por fim
+// — dinamicamente — qualquer tag personalizada usada nos dados.
 function buildStatCards(porStatus, tagsExtras, orange) {
   const cards = [
-    { label: 'TOTAL DE REGISTROS',                key: null,                   color: orange          },
-    { label: 'AUS. NÃO COMUNICADAS',              key: 'ausencia',             color: [239, 68,  68 ] },
-    { label: 'AUS. COMUNICADAS',                  key: 'aviso',                color: [234, 179, 8  ] },
-    { label: 'SUBSTITUÍDOS',                      key: 'substituido',          color: [167, 139, 250] },
-    { label: 'BLOQUEADOS',                        key: 'bloqueado',            color: orange          },
-    { label: 'AUS. COMUNICADA — EM SISTEMA',      key: 'ausencia_em_sistema',  color: [34,  197, 94 ] },
-    { label: 'AUS. NÃO COMUNICADA — EM SISTEMA',  key: 'nao_com_em_sistema',   color: [96,  165, 250] },
+    { label: 'TOTAL DE REGISTROS', key: null, color: orange },
+    ...STATUS_CONFIG.map(s => ({
+      label: s.cardLabel,
+      key: s.value,
+      color: statusColorRgb(s.value),
+    })),
   ]
 
   const statusConhecidos = new Set(cards.map(c => c.key).filter(Boolean))
@@ -215,19 +196,13 @@ export function generatePDF({ data, dateKey, responsible, user }) {
       if (r.status) tPorStatus[r.status] = (tPorStatus[r.status] || 0) + 1
     })
     const miniStatsPartes = [`${tTotal} reg`]
-    ;[
-      ['ausencia', 'não com.'],
-      ['aviso', 'com.'],
-      ['substituido', 'subst.'],
-      ['bloqueado', 'bloq.'],
-      ['ausencia_em_sistema', 'com/sis'],
-      ['nao_com_em_sistema', 'ncom/sis'],
-    ].forEach(([key, sufixo]) => {
-      if (tPorStatus[key]) miniStatsPartes.push(`${tPorStatus[key]} ${sufixo}`)
+    STATUS_CONFIG.forEach(s => {
+      if (tPorStatus[s.value]) miniStatsPartes.push(`${tPorStatus[s.value]} ${s.cardLabel}`)
     })
     // Tags personalizadas presentes neste turno
+    const statusFixosSet = new Set(STATUS_CONFIG.map(s => s.value))
     Object.keys(tPorStatus)
-      .filter(k => !['ausencia','aviso','substituido','bloqueado','ausencia_em_sistema','nao_com_em_sistema'].includes(k))
+      .filter(k => !statusFixosSet.has(k))
       .forEach(k => {
         const extra = tagsExtras.find(t => t.value === k)
         const nome = extra ? extra.label : k.toUpperCase()
