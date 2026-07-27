@@ -11,7 +11,7 @@ import {
   generatePDFTemplate1,
   generatePDFTemplate2,
   generatePDFTemplate3,
-} from './utils/generatePDFTemplate.js'
+} from './utils/generatePDFTemplates.js'
 import { carregarTagsExtras } from './utils/tagsExtras.js'
 import { STATUS_CONFIG } from './utils/statusConfig.js'
 
