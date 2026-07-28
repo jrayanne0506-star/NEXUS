@@ -281,12 +281,13 @@ export default function Login({ onLogin }) {
         <div style={styles.divider}/>
 
         <div style={styles.group}>
-          <label style={styles.label}>Usuário</label>
+          <label style={styles.label}>E-mail</label>
           <input
             style={styles.input}
+            type="email"
             value={user}
             onChange={e => setUser(e.target.value)}
-            placeholder="operacional1"
+            placeholder="seu.email@nexus.com"
             autoComplete="off"
             onKeyDown={e => e.key === 'Enter' && handle()}
             disabled={loading}
