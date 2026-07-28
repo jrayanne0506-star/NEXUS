@@ -1,5 +1,4 @@
 import React, { useRef } from 'react'
-import { carregarTagsExtras, salvarTagsExtras } from '../utils/tagsExtras.js'
 import { STATUS_FIXOS, statusColorHex } from '../utils/statusConfig.js'
 import AnexarPrintOCR from './AnexarPrintOCR.jsx'
 
@@ -9,9 +8,10 @@ function statusColor(status, tagsExtras = []) {
   return statusColorHex(status)
 }
 
-export default function ShiftTable({ rows, onAdd, onDelete, onUpdate }) {
+// tagsExtras agora vem pronto do App.jsx (que já carrega do Supabase de
+// forma assíncrona) — o ShiftTable não carrega mais por conta própria.
+export default function ShiftTable({ rows, onAdd, onDelete, onUpdate, tagsExtras = [] }) {
   const tbodyRef = useRef()
-  const [tagsExtras, setTagsExtras] = React.useState(carregarTagsExtras)
   const [qtdAdd, setQtdAdd] = React.useState(1)
   const [importInfo, setImportInfo] = React.useState(null)
 

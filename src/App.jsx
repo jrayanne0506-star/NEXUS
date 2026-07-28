@@ -301,7 +301,7 @@ export default function App() {
               )}
             </div>
 
-            <ShiftTable rows={visibleRows} onAdd={addRow} onDelete={deleteRow} onUpdate={updateRow} />
+            <ShiftTable rows={visibleRows} onAdd={addRow} onDelete={deleteRow} onUpdate={updateRow} tagsExtras={tagsExtras} />
           </div>
 
           <footer style={s.footer}>
