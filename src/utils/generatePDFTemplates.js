@@ -168,7 +168,7 @@ export async function generatePDFTemplate1({ data, dateKey, responsible, prints 
   const pageH = doc.internal.pageSize.getHeight()
   const emitDate = formatDatePT(dateKey)
   const now = new Date()
-  const tagsExtras = carregarTagsExtras() // tags personalizadas ("+ NOVA TAG")
+  const tagsExtras = await carregarTagsExtras()
 
   const orange = [210, 105, 30]
   const darkBg = [26,  26,  26]
@@ -294,7 +294,7 @@ export async function generatePDFTemplate2({ data, dateKey, responsible, prints 
   const pageH = doc.internal.pageSize.getHeight()
   const emitDate = formatDatePT(dateKey)
   const now = new Date()
-  const tagsExtras = carregarTagsExtras() // tags personalizadas ("+ NOVA TAG")
+  const tagsExtras = await carregarTagsExtras()
 
   const navyDark = [26,  58,  107]
   const navyMid  = [45,  90,  160]
@@ -412,7 +412,7 @@ export async function generatePDFTemplate3({ data, dateKey, responsible, prints 
   const emitDate = formatDatePT(dateKey)
   const now = new Date()
   const dia = diaSemana(dateKey)
-  const tagsExtras = carregarTagsExtras() // tags personalizadas ("+ NOVA TAG")
+  const tagsExtras = await carregarTagsExtras()
 
   const bgMain = [22,  33,  62 ]
   const bgSec  = [26,  26,  46 ]

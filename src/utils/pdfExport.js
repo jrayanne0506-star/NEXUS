@@ -80,7 +80,7 @@ export function generatePDF({ data, dateKey, responsible, user }) {
   const now   = new Date()
   const emitDate = formatDatePT(dateKey)
   const emitTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  const tagsExtras = carregarTagsExtras() // tags personalizadas ("+ NOVA TAG")
+  const tagsExtras = await carregarTagsExtras()
 
   const orange = [249, 115, 22]
   const black  = [10,  10,  12 ]
