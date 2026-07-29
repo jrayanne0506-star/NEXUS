@@ -177,15 +177,22 @@ export default function App() {
   function shiftCount(s) { return (data[s] || []).filter(r => r.name?.trim()).length }
 
   // ── Exportar PDF ──────────────────────────────────────────────────────────
+  // generatePDF / generatePDFTemplate1/2/3 são async (carregam tagsExtras do
+  // Supabase e, nos templates, aguardam addAttachmentsPages). Sem await aqui,
+  // o "GERANDO PDF…" some antes do doc.save() rodar e qualquer erro dentro
+  // deles vira uma promise rejeitada silenciosa — nada é baixado.
   async function handleExport(templateId) {
     setPdfLoading(true)
     setExportOpen(false)
     const args = { data, dateKey, responsible: data.responsible, user: user?.nome || user?.email }
     try {
-      if (templateId === 'original')   generatePDF(args)
-      if (templateId === 'template1')  generatePDFTemplate1(args)
-      if (templateId === 'template2')  generatePDFTemplate2(args)
-      if (templateId === 'template3')  generatePDFTemplate3(args)
+      if (templateId === 'original')   await generatePDF(args)
+      if (templateId === 'template1')  await generatePDFTemplate1(args)
+      if (templateId === 'template2')  await generatePDFTemplate2(args)
+      if (templateId === 'template3')  await generatePDFTemplate3(args)
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err)
+      alert('Erro ao gerar PDF: ' + err.message)
     } finally {
       setPdfLoading(false)
     }
